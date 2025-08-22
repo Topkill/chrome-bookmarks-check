@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>书签哨兵 - 设置</title>
+</head>
+<body>
+  <div id="app">
+    <div class="container">
+      <header>
+        <h1>⭐ 书签哨兵 - 设置</h1>
+      </header>
+      
+      <main>
+        <section>
+          <h2>基本设置</h2>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="enable-auto-marking">
+              <span>自动标记页面链接（可能影响性能）</span>
+            </label>
+            <small style="display: block; margin-left: 25px; color: #999;">
+              开启后，访问网页时自动扫描并标记已收藏的链接
+            </small>
+          </div>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="show-notifications" checked>
+              <span>显示通知提醒</span>
+            </label>
+          </div>
+        </section>
+        
+        <section>
+          <h2>URL匹配设置</h2>
+          <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
+            选择在比较URL时忽略哪些差异（规范化处理）
+          </p>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="ignore-protocol">
+              <span>忽略协议差异 (http/https)</span>
+            </label>
+            <small style="display: block; margin-left: 25px; color: #999;">
+              例如：http://example.com 与 https://example.com 视为相同
+            </small>
+          </div>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="ignore-trailing-slash">
+              <span>忽略末尾斜杠</span>
+            </label>
+            <small style="display: block; margin-left: 25px; color: #999;">
+              例如：example.com/path 与 example.com/path/ 视为相同
+            </small>
+          </div>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="ignore-case">
+              <span>忽略大小写差异（仅域名部分）</span>
+            </label>
+            <small style="display: block; margin-left: 25px; color: #999;">
+              例如：EXAMPLE.COM 与 example.com 视为相同
+            </small>
+          </div>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="ignore-www">
+              <span>忽略www前缀</span>
+            </label>
+            <small style="display: block; margin-left: 25px; color: #999;">
+              例如：www.example.com 与 example.com 视为相同
+            </small>
+          </div>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="ignore-hash">
+              <span>忽略URL片段（#后的内容）</span>
+            </label>
+            <small style="display: block; margin-left: 25px; color: #999;">
+              例如：example.com#section 与 example.com 视为相同
+            </small>
+          </div>
+        </section>
+        
+        <section>
+          <h2>高级设置</h2>
+          <div class="setting-item">
+            <label>
+              批量查询大小：
+              <input type="number" id="batch-size" value="50" min="10" max="200">
+            </label>
+          </div>
+          <div class="setting-item">
+            <label>
+              缓存更新间隔（天）：
+              <input type="number" id="cache-days" value="7" min="1" max="30">
+            </label>
+          </div>
+        </section>
+        
+        <section id="help">
+          <h2>帮助说明</h2>
+          <div class="help-content">
+            <h3>功能介绍</h3>
+            <p>书签哨兵是一个智能的书签管理扩展，能够自动检测网页上的链接是否已被收藏。</p>
+            
+            <h3>使用方法</h3>
+            <ol>
+              <li>安装扩展后，会自动建立书签缓存</li>
+              <li>浏览网页时，已收藏的链接会自动标记⭐图标</li>
+              <li>右键点击链接或选中文本，可以快速检查是否已收藏</li>
+              <li>点击扩展图标查看当前页面的统计信息</li>
+            </ol>
+            
+            <h3>性能优化</h3>
+            <p>本扩展使用布隆过滤器技术，即使有数万个书签也能保持快速响应。</p>
+          </div>
+        </section>
+        
+        <div class="actions">
+          <button id="save-btn">保存设置</button>
+          <button id="reset-btn">恢复默认</button>
+        </div>
+      </main>
+    </div>
+  </div>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      color: #333;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    header {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    header h1 {
+      color: #764ba2;
+      font-size: 28px;
+    }
+    
+    main {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    section {
+      margin-bottom: 30px;
+    }
+    
+    h2 {
+      color: #667eea;
+      margin-bottom: 20px;
+      font-size: 20px;
+    }
+    
+    h3 {
+      color: #764ba2;
+      margin: 15px 0 10px 0;
+      font-size: 16px;
+    }
+    
+    .setting-item {
+      margin-bottom: 15px;
+    }
+    
+    .setting-item label {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    
+    .setting-item input[type="checkbox"] {
+      margin-right: 10px;
+    }
+    
+    .setting-item input[type="number"] {
+      margin-left: 10px;
+      padding: 5px 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      width: 80px;
+    }
+
+    small {
+      font-size: 12px;
+      line-height: 1.4;
+      margin-top: 5px;
+    }
+    
+    .help-content {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    
+    .help-content p {
+      margin-bottom: 10px;
+      line-height: 1.6;
+    }
+    
+    .help-content ol {
+      margin-left: 20px;
+      line-height: 1.8;
+    }
+    
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 30px;
+    }
+    
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    #save-btn {
+      background: #667eea;
+      color: white;
+    }
+    
+    #save-btn:hover {
+      background: #5a67d8;
+    }
+    
+    #reset-btn {
+      background: #e5e7eb;
+      color: #333;
+    }
+    
+    #reset-btn:hover {
+      background: #d1d5db;
+    }
+  </style>
+  
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

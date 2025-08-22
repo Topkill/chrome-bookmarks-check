@@ -1,3 +1,5 @@
 .history
 开发说明书.md
 .vscode
+node_modules
+dist
