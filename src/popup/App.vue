@@ -220,7 +220,8 @@ async function loadPageStats() {
     // 获取当前活动标签
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
-    if (!tab || !tab.id) {
+    if (!tab || !tab.id || !tab.url || !tab.url.startsWith('http')) {
+      pageStats.value = null;
       return;
     }
     
@@ -244,7 +245,9 @@ async function enableMarking() {
     markingLoading.value = true;
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
-    if (!tab || !tab.id) {
+    if (!tab || !tab.id || !tab.url || !tab.url.startsWith('http')) {
+      showNotification('此页面不支持标记', 'error');
+      markingLoading.value = false;
       return;
     }
     
@@ -269,7 +272,9 @@ async function disableMarking() {
     markingLoading.value = true;
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
-    if (!tab || !tab.id) {
+    if (!tab || !tab.id || !tab.url || !tab.url.startsWith('http')) {
+      showNotification('此页面不支持标记', 'error');
+      markingLoading.value = false;
       return;
     }
     
@@ -292,7 +297,9 @@ async function refreshMarks() {
     refreshingMarks.value = true;
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
-    if (!tab || !tab.id) {
+    if (!tab || !tab.id || !tab.url || !tab.url.startsWith('http')) {
+      showNotification('此页面不支持刷新', 'error');
+      refreshingMarks.value = false;
       return;
     }
     
