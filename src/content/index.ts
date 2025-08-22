@@ -205,11 +205,11 @@ class ContentScript {
             return { urls };
             
           case 'SHOW_SINGLE_LINK_RESULT':
-            this.showResultModal([message.payload.result]);
+            this.showResultModal([message.payload.result], message.payload.modalDuration);
             return { success: true };
             
           case 'SHOW_MULTIPLE_LINKS_RESULT':
-            this.showResultModal(message.payload.results.results);
+            this.showResultModal(message.payload.results.results, message.payload.modalDuration);
             return { success: true };
             
           default:
@@ -396,7 +396,7 @@ class ContentScript {
   /**
   * 显示结果弹窗
   */
-  private showResultModal(results: any[]) {
+  private showResultModal(results: any[], durationInSeconds: number) {
     // 移除已存在的弹窗
     const existingModal = document.getElementById('bookmark-sentry-modal');
     if (existingModal) {
@@ -498,13 +498,13 @@ class ContentScript {
       modal.remove();
     });
 
-    // 5秒后自动关闭（仅对单链接结果）
-    if (!isMultiple) {
+    // 设置自动关闭
+    if (durationInSeconds > 0) {
       setTimeout(() => {
         if (document.getElementById('bookmark-sentry-modal')) {
           modal.remove();
         }
-      }, 5000);
+      }, durationInSeconds * 1000);
     }
   }
   

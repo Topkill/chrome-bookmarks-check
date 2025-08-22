@@ -60,6 +60,13 @@ class BackgroundService {
       case 'EXTRACT_AND_SHOW_RESULTS': {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab || tab.id === undefined) throw new Error('无法获取当前标签页');
+        
+        // 检查URL是否有效
+        if (!tab.url || !tab.url.startsWith('http')) {
+          this.showNotification('提示', '此页面类型不支持提取URL。');
+          return { success: false, message: '无效的页面类型' };
+        }
+        
         try {
           const response = await chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_ALL_URLS' });
           if (response && response.urls && response.urls.length > 0) {
@@ -96,6 +103,13 @@ class BackgroundService {
       chrome.contextMenus.create({ id: 'check-link', title: '检查此链接是否已收藏', contexts: ['link'] });
       chrome.contextMenus.onClicked.addListener((info, tab) => {
         if (!tab || tab.id === undefined) return;
+
+        // 检查URL是否为http/https协议
+        if (!tab.url || !tab.url.startsWith('http')) {
+          this.showNotification('提示', '此页面类型不支持此操作。');
+          return;
+        }
+        
         if (info.menuItemId === 'check-link' && info.linkUrl) {
           this.checkLinkBookmark(info.linkUrl, tab.id);
         } else if (info.menuItemId === 'check-selected-text') {
