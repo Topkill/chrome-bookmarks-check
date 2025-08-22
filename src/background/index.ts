@@ -58,7 +58,7 @@ class BackgroundService {
         await this.loadSettings();
         return { success: true };
       case 'EXTRACT_AND_SHOW_RESULTS': {
-        const tab = sender.tab;
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab || tab.id === undefined) throw new Error('无法获取当前标签页');
         try {
           const response = await chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_ALL_URLS' });
