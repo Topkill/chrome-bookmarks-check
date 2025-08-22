@@ -204,6 +204,14 @@ class ContentScript {
             const urls = this.extractAllPageUrls();
             return { urls };
             
+          case 'SHOW_SINGLE_LINK_RESULT':
+            this.showResultModal([message.payload.result]);
+            return { success: true };
+            
+          case 'SHOW_MULTIPLE_LINKS_RESULT':
+            this.showResultModal(message.payload.results.results);
+            return { success: true };
+            
           default:
             return { error: '未知消息类型' };
         }
@@ -383,6 +391,131 @@ class ContentScript {
     } catch {
       return url;
     }
+  }
+
+  /**
+  * 显示结果弹窗
+  */
+  private showResultModal(results: any[]) {
+    // 移除已存在的弹窗
+    const existingModal = document.getElementById('bookmark-sentry-modal');
+    if (existingModal) {
+      existingModal.remove();
+    }
+
+    const modal = document.createElement('div');
+    modal.id = 'bookmark-sentry-modal';
+    
+    // 根据结果数量调整弹窗大小
+    const isMultiple = results.length > 1;
+    const width = isMultiple ? '500px' : '350px';
+    const maxHeight = isMultiple ? '400px' : 'auto';
+    
+    modal.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 99999999;
+      background-color: white;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      width: ${width};
+      max-width: 90%;
+      max-height: ${maxHeight};
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      color: #333;
+      ${isMultiple ? 'overflow-y: auto;' : ''}
+    `;
+
+    const closeButton = `<button id="bookmark-sentry-modal-close" style="position: absolute; top: 10px; right: 10px; background: none; border: none; font-size: 20px; cursor: pointer; color: #888;">&times;</button>`;
+    
+    let content = '';
+    
+    if (isMultiple) {
+      // 多链接结果显示
+      const total = results.length;
+      const bookmarked = results.filter(r => r.isBookmarked).length;
+      const title = `<h3 style="margin-top:0; margin-bottom: 15px; font-size: 16px; color: #111;">🔍 检查结果 (${bookmarked}/${total})</h3>`;
+      
+      content = title;
+      content += `<div style="max-height: 300px; overflow-y: auto; margin-top: 10px;">`;
+      
+      results.forEach((result, index) => {
+        const statusIcon = result.isBookmarked ? '✅' : '❌';
+        const bgColor = result.isBookmarked ? '#f8f9fa' : '#ffffff';
+        const borderColor = result.isBookmarked ? '#28a745' : '#dc3545';
+        
+        content += `
+          <div style="
+            border: 1px solid ${borderColor};
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 10px;
+            background-color: ${bgColor};
+          ">
+            <div style="display: flex; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 16px; margin-right: 8px;">${statusIcon}</span>
+              <span style="font-weight: 600; color: #111;">${result.isBookmarked ? '已收藏' : '未收藏'}</span>
+            </div>
+            <p style="margin: 0 0 6px 0; word-wrap: break-word; font-size: 12px;">
+              <b>原始链接:</b> <a href="${result.original}" target="_blank" rel="noopener noreferrer" style="color: #007bff;">${this.truncateUrl(result.original, 50)}</a>
+            </p>
+            ${result.normalized !== result.original ?
+              `<p style="margin: 0 0 6px 0; word-wrap: break-word; font-size: 12px;">
+                <b>规范化:</b> <span style="color: #666;">${this.truncateUrl(result.normalized, 50)}</span>
+              </p>` : ''
+            }
+            ${result.isBookmarked ?
+              `<p style="margin: 0; word-wrap: break-word; font-size: 12px;">
+                <b>书签位置:</b> <a href="${result.bookmarkUrl}" target="_blank" rel="noopener noreferrer" style="color: #28a745;">${this.truncateUrl(result.bookmarkUrl || '未知', 50)}</a>
+              </p>` : ''
+            }
+          </div>
+        `;
+      });
+      
+      content += `</div>`;
+    } else {
+      // 单链接结果显示（保持原有样式）
+      const result = results[0];
+      const statusIcon = result.isBookmarked ? '✅' : 'ℹ️';
+      const statusText = result.isBookmarked ? '链接已收藏' : '链接未收藏';
+      const title = `<h3 style="margin-top:0; margin-bottom: 15px; font-size: 16px; color: #111;">${statusIcon} ${statusText}</h3>`;
+      
+      content = title;
+      content += `<p style="margin: 0 0 10px 0; word-wrap: break-word;"><b>原始链接:</b> <a href="${result.original}" target="_blank" rel="noopener noreferrer" style="color: #007bff;">${result.original}</a></p>`;
+      content += `<p style="margin: 0 0 10px 0; word-wrap: break-word;"><b>规范化:</b> <span style="color: #555;">${result.normalized}</span></p>`;
+      if (result.isBookmarked) {
+        content += `<p style="margin: 0; word-wrap: break-word;"><b>书签位置:</b> <a href="${result.bookmarkUrl}" target="_blank" rel="noopener noreferrer" style="color: #007bff;">${result.bookmarkUrl || '未知'}</a></p>`;
+      }
+    }
+
+    modal.innerHTML = closeButton + content;
+    document.body.appendChild(modal);
+
+    document.getElementById('bookmark-sentry-modal-close')?.addEventListener('click', () => {
+      modal.remove();
+    });
+
+    // 5秒后自动关闭（仅对单链接结果）
+    if (!isMultiple) {
+      setTimeout(() => {
+        if (document.getElementById('bookmark-sentry-modal')) {
+          modal.remove();
+        }
+      }, 5000);
+    }
+  }
+  
+  /**
+   * 截断URL显示
+   */
+  private truncateUrl(url: string, maxLength: number = 60): string {
+    if (!url || url.length <= maxLength) return url || '';
+    return url.substring(0, maxLength - 3) + '...';
   }
 }
 

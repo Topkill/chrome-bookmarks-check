@@ -30,6 +30,28 @@
               <span>显示通知提醒</span>
             </label>
           </div>
+          <div class="setting-item">
+           <label>检查单个链接时的操作:</label>
+           <div class="radio-group" style="margin-left: 10px;">
+             <label><input type="radio" name="single-link-action" value="page" checked> 打开结果页面</label>
+             <label><input type="radio" name="single-link-action" value="notification"> 显示系统通知</label>
+             <label><input type="radio" name="single-link-action" value="modal"> 显示页面内弹窗</label>
+           </div>
+           <small style="display: block; margin-left: 25px; color: #999;">
+             选择右键点击单个链接检查收藏状态时的反馈方式。
+           </small>
+         </div>
+         <div class="setting-item">
+           <label>检查多个链接时的操作:</label>
+           <div class="radio-group" style="margin-left: 10px;">
+             <label><input type="radio" name="multi-link-action" value="page" checked> 打开结果页面</label>
+             <label><input type="radio" name="multi-link-action" value="notification"> 显示系统通知</label>
+             <label><input type="radio" name="multi-link-action" value="modal"> 显示页面内弹窗</label>
+           </div>
+           <small style="display: block; margin-left: 25px; color: #999;">
+             选择批量检查链接（右键菜单提取URL、主界面提取URL）时的反馈方式。
+           </small>
+         </div>
         </section>
         
         <section>
@@ -98,24 +120,32 @@
               <input type="number" id="cache-days" value="7" min="1" max="30">
             </label>
           </div>
-        </section>
-        
-        <section id="help">
-          <h2>帮助说明</h2>
-          <div class="help-content">
-            <h3>功能介绍</h3>
-            <p>书签哨兵是一个智能的书签管理扩展，能够自动检测网页上的链接是否已被收藏。</p>
-            
-            <h3>使用方法</h3>
-            <ol>
-              <li>安装扩展后，会自动建立书签缓存</li>
-              <li>浏览网页时，已收藏的链接会自动标记⭐图标</li>
-              <li>右键点击链接或选中文本，可以快速检查是否已收藏</li>
-              <li>点击扩展图标查看当前页面的统计信息</li>
-            </ol>
-            
-            <h3>性能优化</h3>
-            <p>本扩展使用布隆过滤器技术，即使有数万个书签也能保持快速响应。</p>
+          <div class="setting-item">
+            <label>
+              通知存在时长（秒）：
+              <input type="number" id="notification-duration" value="15" min="0" max="300">
+            </label>
+            <small style="display: block; margin-left: 25px; color: #999;">
+              设置系统通知的自动关闭时间，0表示永久存在直到手动关闭
+            </small>
+          </div>
+          <div class="setting-item">
+            <label>
+              单链接弹窗存在时长（秒）：
+              <input type="number" id="single-modal-duration" value="5" min="0" max="300">
+            </label>
+            <small style="display: block; margin-left: 25px; color: #999;">
+              设置单链接弹窗的自动关闭时间，0表示永久存在直到手动关闭
+            </small>
+          </div>
+          <div class="setting-item">
+            <label>
+              多链接弹窗存在时长（秒）：
+              <input type="number" id="multi-modal-duration" value="0" min="0" max="300">
+            </label>
+            <small style="display: block; margin-left: 25px; color: #999;">
+              设置多链接弹窗的自动关闭时间，0表示永久存在直到手动关闭
+            </small>
           </div>
         </section>
         
@@ -203,6 +233,17 @@
       border: 1px solid #ddd;
       border-radius: 4px;
       width: 80px;
+    }
+    
+    .radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .radio-group label {
+      margin: 0;
+      padding: 4px 0;
     }
 
     small {

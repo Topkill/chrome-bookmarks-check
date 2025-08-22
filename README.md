@@ -45,7 +45,7 @@
 
 1. **克隆项目**
 ```bash
-git clone https://github.com/yourusername/bookmark-sentry.git
+git clone https://github.com/Topkill/chrome-bookmarks-check.git
 cd bookmark-sentry
 ```
 
@@ -122,6 +122,14 @@ npm run build
 |---------|------|--------|------|
 | **基本设置** | 自动标记页面链接 | 关闭 | 开启后自动扫描，可能影响性能 |
 | | 显示通知提醒 | 开启 | 控制系统通知弹窗 |
+| | **检查单个链接时的操作** | 打开结果页面 | 右键点击单个链接时的反馈方式 |
+| | **检查多个链接时的操作** | 打开结果页面 | 批量检查链接时的反馈方式 |
+| **结果显示方式** | 打开结果页面 | ✓ | 在新标签页中详细显示检查结果 |
+| | 显示系统通知 | | 通过系统通知快速显示结果摘要 |
+| | 显示页面内弹窗 | | 在当前页面内以弹窗形式显示结果 |
+| **持续时间设置** | 通知持续时间 | 15秒 | 系统通知自动消失时间，0表示永久显示 |
+| | 单链接弹窗持续时间 | 5秒 | 单个链接结果弹窗显示时间 |
+| | 多链接弹窗持续时间 | 15秒 | 多个链接结果弹窗显示时间 |
 | **URL匹配** | 忽略协议差异 | 关闭 | http/https视为相同 |
 | | 忽略末尾斜杠 | 关闭 | 有无斜杠视为相同 |
 | | 忽略大小写 | 关闭 | 域名大小写视为相同 |
@@ -213,6 +221,12 @@ bookmark-sentry/
 - ✅ 修复了关闭标记后重新开启无效的问题
 - ✅ 修复了刷新标记后计数显示错误
 - ✅ 优化了结果页面，避免重复显示相似URL
+- ✅ **修复了右键菜单功能显示错误结果类型的问题**
+  - 修正了单链接和多链接操作设置的选择逻辑
+  - 增强了通知内容，显示详细的URL信息（原始链接、规范化链接、书签位置）
+  - 添加了可自定义的持续时间设置，支持通知、单链接弹窗、多链接弹窗分别设置
+  - 实现了通知自动清除功能
+  - 修正了多链接弹窗默认持续时间为15秒
 
 ## 🤝 贡献
 
@@ -229,5 +243,5 @@ bookmark-sentry/
 
 ## 📮 联系方式
 
-- 问题反馈: [GitHub Issues](https://github.com/yourusername/bookmark-sentry/issues)
-- 功能建议: [GitHub Discussions](https://github.com/yourusername/bookmark-sentry/discussions)
+- 问题反馈: [GitHub Issues](https://github.com/Topkill/chrome-bookmarks-check/issues)
+- 功能建议: [GitHub Discussions](https://github.com/Topkill/chrome-bookmarks-check/discussions)

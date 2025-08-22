@@ -54,8 +54,20 @@ document.addEventListener('DOMContentLoaded', () => {
         // 基本设置
         (document.getElementById('enable-auto-marking') as HTMLInputElement).checked = result.settings.enableAutoMarking ?? false;
         (document.getElementById('show-notifications') as HTMLInputElement).checked = result.settings.showNotifications ?? true;
+       
+        // 单链接操作设置
+        const singleLinkAction = result.settings.singleLinkAction ?? 'page';
+        (document.querySelector(`input[name="single-link-action"][value="${singleLinkAction}"]`) as HTMLInputElement).checked = true;
+        
+        // 多链接操作设置
+        const multiLinkAction = result.settings.multiLinkAction ?? 'page';
+        (document.querySelector(`input[name="multi-link-action"][value="${multiLinkAction}"]`) as HTMLInputElement).checked = true;
+
         (document.getElementById('batch-size') as HTMLInputElement).value = result.settings.batchSize ?? 50;
         (document.getElementById('cache-days') as HTMLInputElement).value = result.settings.cacheDays ?? 7;
+        (document.getElementById('notification-duration') as HTMLInputElement).value = result.settings.notificationDuration ?? 15;
+        (document.getElementById('single-modal-duration') as HTMLInputElement).value = result.settings.singleModalDuration ?? 5;
+        (document.getElementById('multi-modal-duration') as HTMLInputElement).value = result.settings.multiModalDuration ?? 15;
 
         // URL匹配设置（默认全部关闭）
         (document.getElementById('ignore-protocol') as HTMLInputElement).checked = result.settings.ignoreProtocol ?? false;
@@ -77,8 +89,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // 基本设置
     (document.getElementById('enable-auto-marking') as HTMLInputElement).checked = false;
     (document.getElementById('show-notifications') as HTMLInputElement).checked = true;
+   (document.querySelector('input[name="single-link-action"][value="page"]') as HTMLInputElement).checked = true;
+    (document.querySelector('input[name="multi-link-action"][value="page"]') as HTMLInputElement).checked = true;
     (document.getElementById('batch-size') as HTMLInputElement).value = '50';
     (document.getElementById('cache-days') as HTMLInputElement).value = '7';
+    
+    // 持续时间设置（恢复默认值）
+    (document.getElementById('notification-duration') as HTMLInputElement).value = '15';
+    (document.getElementById('single-modal-duration') as HTMLInputElement).value = '5';
+    (document.getElementById('multi-modal-duration') as HTMLInputElement).value = '15';
 
     // URL匹配设置（默认全部关闭）
     (document.getElementById('ignore-protocol') as HTMLInputElement).checked = false;
@@ -94,8 +113,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const settings = {
         enableAutoMarking: (document.getElementById('enable-auto-marking') as HTMLInputElement).checked,
         showNotifications: (document.getElementById('show-notifications') as HTMLInputElement).checked,
-        batchSize: parseInt((document.getElementById('batch-size') as HTMLInputElement).value),
+       singleLinkAction: (document.querySelector('input[name="single-link-action"]:checked') as HTMLInputElement).value,
+       multiLinkAction: (document.querySelector('input[name="multi-link-action"]:checked') as HTMLInputElement).value,
+       batchSize: parseInt((document.getElementById('batch-size') as HTMLInputElement).value),
         cacheDays: parseInt((document.getElementById('cache-days') as HTMLInputElement).value),
+        notificationDuration: parseInt((document.getElementById('notification-duration') as HTMLInputElement).value),
+        singleModalDuration: parseInt((document.getElementById('single-modal-duration') as HTMLInputElement).value),
+        multiModalDuration: parseInt((document.getElementById('multi-modal-duration') as HTMLInputElement).value),
         ignoreProtocol: (document.getElementById('ignore-protocol') as HTMLInputElement).checked,
         ignoreTrailingSlash: (document.getElementById('ignore-trailing-slash') as HTMLInputElement).checked,
         ignoreCase: (document.getElementById('ignore-case') as HTMLInputElement).checked,

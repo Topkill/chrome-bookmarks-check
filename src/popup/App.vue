@@ -126,7 +126,7 @@
       <span class="separator">|</span>
       <a @click="openHelp">帮助</a>
       <span class="separator">|</span>
-      <a href="https://github.com/your-repo/bookmark-sentry" target="_blank">GitHub</a>
+      <a href="https://github.com/Topkill/chrome-bookmarks-check" target="_blank">GitHub</a>
     </footer>
   </div>
 </template>
