@@ -463,11 +463,9 @@ class ContentScript {
             <p style="margin: 0 0 6px 0; word-wrap: break-word; font-size: 12px;">
               <b>原始链接:</b> <a href="${result.original}" target="_blank" rel="noopener noreferrer" style="color: #007bff;">${this.truncateUrl(result.original, 50)}</a>
             </p>
-            ${result.normalized !== result.original ?
-              `<p style="margin: 0 0 6px 0; word-wrap: break-word; font-size: 12px;">
-                <b>规范化:</b> <span style="color: #666;">${this.truncateUrl(result.normalized, 50)}</span>
-              </p>` : ''
-            }
+            <p style="margin: 0 0 6px 0; word-wrap: break-word; font-size: 12px;">
+              <b>规范化:</b> <span style="color: #666;">${this.truncateUrl(result.normalized, 50)}</span>
+            </p>
             ${result.isBookmarked ?
               `<p style="margin: 0; word-wrap: break-word; font-size: 12px;">
                 <b>书签位置:</b> <a href="${result.bookmarkUrl}" target="_blank" rel="noopener noreferrer" style="color: #28a745;">${this.truncateUrl(result.bookmarkUrl || '未知', 50)}</a>

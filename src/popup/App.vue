@@ -164,6 +164,7 @@ const notification = ref({
 });
 
 let updateTimer: number | null = null;
+let autoRefreshTimer: number | null = null;
 
 // 显示通知
 function showNotification(message: string, type: string = 'success') {
@@ -406,12 +407,13 @@ function stopPolling() {
 
 // 自动刷新统计信息
 function startAutoRefresh() {
-  setInterval(async () => {
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+  autoRefreshTimer = setInterval(async () => {
     // 只在没有其他操作进行时自动刷新
     if (!markingLoading.value && !refreshingMarks.value && !extracting.value) {
       await loadPageStats();
     }
-  }, 2000); // 每2秒刷新一次
+  }, 2000) as unknown as number; // 每2秒刷新一次
 }
 
 // 生命周期
@@ -437,6 +439,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
   stopPolling();
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
 });
 </script>
 
