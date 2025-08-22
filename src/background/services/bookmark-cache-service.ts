@@ -9,6 +9,7 @@ export class BookmarkCacheService {
   private static instance: BookmarkCacheService;
   private bloomFilter: BloomFilter | null = null;
   private urlSet: Set<string> = new Set();
+  private urlMap: Map<string, string> = new Map(); // 新增：规范化URL -> 原始URL
   private metadata = {
     version: 1,
     bookmarkCount: 0,
@@ -54,6 +55,8 @@ export class BookmarkCacheService {
         // 缓存有效，加载到内存
         this.loadCacheToMemory(cache);
         console.log('[BookmarkCacheService] 从存储加载缓存成功');
+        // 缓存有效但urlMap是内存独有的，需要重建
+        this.buildUrlMap();
       } else {
         // 缓存无效或不存在，触发全量重建
         console.log('[BookmarkCacheService] 缓存无效或不存在，开始全量重建');
@@ -88,21 +91,22 @@ export class BookmarkCacheService {
 
       // 获取所有书签
       const bookmarkTree = await chrome.bookmarks.getTree();
-      const urls = this.extractUrlsFromTree(bookmarkTree);
+      const { urlSet, urlMap } = this.extractUrlsFromTree(bookmarkTree);
       
-      console.log('[BookmarkCacheService] 提取到', urls.size, '个唯一URL');
+      console.log('[BookmarkCacheService] 提取到', urlSet.size, '个唯一URL');
 
       // 构建新的布隆过滤器
-      this.bloomFilter = new BloomFilter(urls.size + 10000, 0.001); // 留一些增长空间
-      for (const url of urls) {
+      this.bloomFilter = new BloomFilter(urlSet.size + 10000, 0.001); // 留一些增长空间
+      for (const url of urlSet) {
         this.bloomFilter.add(url);
       }
 
       // 更新内存数据
-      this.urlSet = urls;
+      this.urlSet = urlSet;
+      this.urlMap = urlMap;
       this.metadata = {
         version: 1,
-        bookmarkCount: urls.size,
+        bookmarkCount: urlSet.size,
         lastUpdated: Date.now()
       };
 
@@ -164,6 +168,12 @@ export class BookmarkCacheService {
       await this.initialize();
     }
 
+    // 安全检查：如果urlMap为空，则重建
+    if (this.urlMap.size === 0 && this.urlSet.size > 0) {
+      console.log('[BookmarkCacheService] urlMap为空，开始重建');
+      await this.buildUrlMap();
+    }
+
     const results: {
       original: string;
       normalized: string;
@@ -181,8 +191,8 @@ export class BookmarkCacheService {
         // 二级确认：精确查找
         if (this.urlSet.has(normalizedUrl)) {
           isBookmarked = true;
-          // 找到书签中实际存储的URL
-          bookmarkUrl = await this.findOriginalBookmarkUrl(normalizedUrl);
+          // 优化：直接从Map中获取原始URL，避免遍历
+          bookmarkUrl = this.urlMap.get(normalizedUrl);
         }
       }
 
@@ -198,32 +208,22 @@ export class BookmarkCacheService {
   }
 
   /**
-   * 根据规范化URL查找原始书签URL
+   * 从书签树构建URL映射
    */
-  private async findOriginalBookmarkUrl(normalizedUrl: string): Promise<string | undefined> {
+  private async buildUrlMap(): Promise<void> {
     try {
-      // 搜索所有书签
       const bookmarkTree = await chrome.bookmarks.getTree();
-      
-      const findUrl = (nodes: chrome.bookmarks.BookmarkTreeNode[]): string | undefined => {
-        for (const node of nodes) {
-          if (node.url && this.normalizeUrl(node.url) === normalizedUrl) {
-            return node.url;
-          }
-          if (node.children) {
-            const found = findUrl(node.children);
-            if (found) return found;
-          }
-        }
-        return undefined;
-      };
-
-      return findUrl(bookmarkTree);
+      const { urlMap } = this.extractUrlsFromTree(bookmarkTree);
+      this.urlMap = urlMap;
+      console.log(`[BookmarkCacheService] urlMap构建完成，包含 ${this.urlMap.size} 个条目`);
     } catch (error) {
-      console.error('[BookmarkCacheService] 查找原始书签URL失败:', error);
-      return undefined;
+      console.error('[BookmarkCacheService] buildUrlMap 失败:', error);
     }
   }
+
+  /**
+   * 根据规范化URL查找原始书签URL
+   */
 
   /**
    * 获取缓存状态
@@ -241,14 +241,19 @@ export class BookmarkCacheService {
   /**
    * 从书签树提取所有URL
    */
-  private extractUrlsFromTree(nodes: chrome.bookmarks.BookmarkTreeNode[]): Set<string> {
-    const urls = new Set<string>();
+  private extractUrlsFromTree(nodes: chrome.bookmarks.BookmarkTreeNode[]): { urlSet: Set<string>, urlMap: Map<string, string> } {
+    const urlSet = new Set<string>();
+    const urlMap = new Map<string, string>();
 
     const traverse = (node: chrome.bookmarks.BookmarkTreeNode) => {
       if (node.url) {
         const normalizedUrl = this.normalizeUrl(node.url);
         if (normalizedUrl) {
-          urls.add(normalizedUrl);
+          // 始终存储第一个遇到的原始URL
+          if (!urlMap.has(normalizedUrl)) {
+            urlMap.set(normalizedUrl, node.url);
+          }
+          urlSet.add(normalizedUrl);
         }
       }
       
@@ -263,7 +268,7 @@ export class BookmarkCacheService {
       traverse(node);
     }
 
-    return urls;
+    return { urlSet, urlMap };
   }
 
   /**
@@ -407,6 +412,7 @@ export class BookmarkCacheService {
     
     if (normalizedUrl && !this.urlSet.has(normalizedUrl)) {
       this.urlSet.add(normalizedUrl);
+      this.urlMap.set(normalizedUrl, url); // 更新Map
       if (this.bloomFilter) {
         this.bloomFilter.add(normalizedUrl);
       }
@@ -490,6 +496,7 @@ export class BookmarkCacheService {
       this.bloomFilter = BloomFilter.deserialize(serialized);
       
       this.urlSet = cache.urlSet;
+      this.urlMap = new Map(); // 初始化为空，将由buildUrlMap填充
       this.metadata = cache.metadata;
     } catch (error) {
       console.error('[BookmarkCacheService] 加载缓存到内存失败:', error);
