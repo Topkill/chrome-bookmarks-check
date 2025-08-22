@@ -1,0 +1,144 @@
+/* 书签哨兵 Content Script 样式 */
+
+/* 防止样式污染，使用特定的前缀 */
+.bookmark-sentry-marked {
+  position: relative !important;
+}
+
+/* 书签图标 */
+.bookmark-sentry-icon {
+  display: inline-block !important;
+  width: 16px !important;
+  height: 16px !important;
+  margin-left: 4px !important;
+  vertical-align: middle !important;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23FFA500"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>') !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  opacity: 0.8 !important;
+  transition: opacity 0.2s ease !important;
+  cursor: pointer !important;
+  position: relative !important;
+}
+
+.bookmark-sentry-icon:hover {
+  opacity: 1 !important;
+}
+
+/* 工具提示 */
+.bookmark-sentry-tooltip {
+  position: absolute !important;
+  bottom: 100% !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  margin-bottom: 5px !important;
+  padding: 4px 8px !important;
+  background: rgba(0, 0, 0, 0.9) !important;
+  color: white !important;
+  font-size: 12px !important;
+  font-weight: normal !important;
+  line-height: 1.4 !important;
+  border-radius: 4px !important;
+  white-space: nowrap !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  transition: opacity 0.2s ease !important;
+  z-index: 999999 !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
+}
+
+.bookmark-sentry-icon:hover .bookmark-sentry-tooltip {
+  opacity: 1 !important;
+}
+
+/* 小三角箭头 */
+.bookmark-sentry-tooltip::after {
+  content: '' !important;
+  position: absolute !important;
+  top: 100% !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: 0 !important;
+  height: 0 !important;
+  border-left: 4px solid transparent !important;
+  border-right: 4px solid transparent !important;
+  border-top: 4px solid rgba(0, 0, 0, 0.9) !important;
+}
+
+/* 高亮动画 */
+@keyframes bookmark-sentry-highlight {
+  0% { 
+    background-color: rgba(255, 165, 0, 0);
+    transform: scale(1);
+  }
+  50% { 
+    background-color: rgba(255, 165, 0, 0.2);
+    transform: scale(1.05);
+  }
+  100% { 
+    background-color: rgba(255, 165, 0, 0);
+    transform: scale(1);
+  }
+}
+
+.bookmark-sentry-highlight {
+  animation: bookmark-sentry-highlight 0.6s ease-in-out !important;
+}
+
+/* 确保链接样式不被破坏 */
+a[data-bookmark-sentry="true"] {
+  text-decoration: inherit !important;
+}
+
+/* 特殊网站适配 */
+/* GitHub */
+.markdown-body a[data-bookmark-sentry="true"] .bookmark-sentry-icon {
+  vertical-align: baseline !important;
+}
+
+/* Twitter/X */
+[data-testid="tweetText"] a[data-bookmark-sentry="true"] .bookmark-sentry-icon {
+  margin-left: 2px !important;
+}
+
+/* Reddit */
+.reddit-post a[data-bookmark-sentry="true"] .bookmark-sentry-icon {
+  display: inline !important;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .bookmark-sentry-icon {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  
+  .bookmark-sentry-tooltip {
+    font-size: 11px !important;
+  }
+}
+
+/* 深色模式适配 */
+@media (prefers-color-scheme: dark) {
+  .bookmark-sentry-icon {
+    filter: brightness(0.9) !important;
+  }
+  
+  .bookmark-sentry-tooltip {
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #1a1a1a !important;
+  }
+  
+  .bookmark-sentry-tooltip::after {
+    border-top-color: rgba(255, 255, 255, 0.95) !important;
+  }
+}
+
+/* 打印时隐藏 */
+@media print {
+  .bookmark-sentry-icon,
+  .bookmark-sentry-tooltip {
+    display: none !important;
+  }
+}

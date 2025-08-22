@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>书签哨兵 - 设置</title>
+</head>
+<body>
+  <div id="app">
+    <div class="container">
+      <header>
+        <h1>⭐ 书签哨兵 - 设置</h1>
+      </header>
+      
+      <main>
+        <section>
+          <h2>基本设置</h2>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="enable-auto-marking">
+              <span>自动标记页面链接（可能影响性能）</span>
+            </label>
+            <small style="display: block; margin-left: 25px; color: #999;">
+              开启后，访问网页时自动扫描并标记已收藏的链接
+            </small>
+          </div>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="show-notifications" checked>
+              <span>显示通知提醒</span>
+            </label>
+          </div>
+          <div class="setting-item">
+           <label>检查单个链接时的操作:</label>
+           <div class="radio-group" style="margin-left: 10px;">
+             <label><input type="radio" name="single-link-action" value="page" checked> 打开结果页面</label>
+             <label><input type="radio" name="single-link-action" value="notification"> 显示系统通知</label>
+             <label><input type="radio" name="single-link-action" value="modal"> 显示页面内弹窗</label>
+           </div>
+           <small style="display: block; margin-left: 25px; color: #999;">
+             选择右键点击单个链接检查收藏状态时的反馈方式。
+           </small>
+         </div>
+         <div class="setting-item">
+           <label>检查多个链接时的操作:</label>
+           <div class="radio-group" style="margin-left: 10px;">
+             <label><input type="radio" name="multi-link-action" value="page" checked> 打开结果页面</label>
+             <label><input type="radio" name="multi-link-action" value="notification"> 显示系统通知</label>
+             <label><input type="radio" name="multi-link-action" value="modal"> 显示页面内弹窗</label>
+           </div>
+           <small style="display: block; margin-left: 25px; color: #999;">
+             选择批量检查链接（右键菜单提取URL、主界面提取URL）时的反馈方式。
+           </small>
+         </div>
+        </section>
+        
+        <section>
+          <h2>URL匹配设置</h2>
+          <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
+            选择在比较URL时忽略哪些差异（规范化处理）
+          </p>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="ignore-protocol">
+              <span>忽略协议差异 (http/https)</span>
+            </label>
+            <small style="display: block; margin-left: 25px; color: #999;">
+              例如：http://example.com 与 https://example.com 视为相同
+            </small>
+          </div>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="ignore-trailing-slash">
+              <span>忽略末尾斜杠</span>
+            </label>
+            <small style="display: block; margin-left: 25px; color: #999;">
+              例如：example.com/path 与 example.com/path/ 视为相同
+            </small>
+          </div>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="ignore-case">
+              <span>忽略大小写差异（仅域名部分）</span>
+            </label>
+            <small style="display: block; margin-left: 25px; color: #999;">
+              例如：EXAMPLE.COM 与 example.com 视为相同
+            </small>
+          </div>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="ignore-www">
+              <span>忽略www前缀</span>
+            </label>
+            <small style="display: block; margin-left: 25px; color: #999;">
+              例如：www.example.com 与 example.com 视为相同
+            </small>
+          </div>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="ignore-hash">
+              <span>忽略URL片段（#后的内容）</span>
+            </label>
+            <small style="display: block; margin-left: 25px; color: #999;">
+              例如：example.com#section 与 example.com 视为相同
+            </small>
+          </div>
+        </section>
+        
+        <section>
+          <h2>高级设置</h2>
+          <div class="setting-item">
+            <label>
+              批量查询大小：
+              <input type="number" id="batch-size" value="50" min="10" max="200">
+            </label>
+          </div>
+          <div class="setting-item">
+            <label>
+              缓存更新间隔（天）：
+              <input type="number" id="cache-days" value="7" min="1" max="30">
+            </label>
+          </div>
+          <div class="setting-item">
+            <label>
+              通知存在时长（秒）：
+              <input type="number" id="notification-duration" value="15" min="0" max="300">
+            </label>
+            <small style="display: block; margin-left: 25px; color: #999;">
+              设置系统通知的自动关闭时间，0表示永久存在直到手动关闭
+            </small>
+          </div>
+          <div class="setting-item">
+            <label>
+              单链接弹窗存在时长（秒）：
+              <input type="number" id="single-modal-duration" value="5" min="0" max="300">
+            </label>
+            <small style="display: block; margin-left: 25px; color: #999;">
+              设置单链接弹窗的自动关闭时间，0表示永久存在直到手动关闭
+            </small>
+          </div>
+          <div class="setting-item">
+            <label>
+              多链接弹窗存在时长（秒）：
+              <input type="number" id="multi-modal-duration" value="0" min="0" max="300">
+            </label>
+            <small style="display: block; margin-left: 25px; color: #999;">
+              设置多链接弹窗的自动关闭时间，0表示永久存在直到手动关闭
+            </small>
+          </div>
+        </section>
+        
+        <div class="actions">
+          <button id="save-btn">保存设置</button>
+          <button id="reset-btn">恢复默认</button>
+        </div>
+      </main>
+    </div>
+  </div>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      color: #333;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    header {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    header h1 {
+      color: #764ba2;
+      font-size: 28px;
+    }
+    
+    main {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    section {
+      margin-bottom: 30px;
+    }
+    
+    h2 {
+      color: #667eea;
+      margin-bottom: 20px;
+      font-size: 20px;
+    }
+    
+    h3 {
+      color: #764ba2;
+      margin: 15px 0 10px 0;
+      font-size: 16px;
+    }
+    
+    .setting-item {
+      margin-bottom: 15px;
+    }
+    
+    .setting-item label {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    
+    .setting-item input[type="checkbox"] {
+      margin-right: 10px;
+    }
+    
+    .setting-item input[type="number"] {
+      margin-left: 10px;
+      padding: 5px 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      width: 80px;
+    }
+    
+    .radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .radio-group label {
+      margin: 0;
+      padding: 4px 0;
+    }
+
+    small {
+      font-size: 12px;
+      line-height: 1.4;
+      margin-top: 5px;
+    }
+    
+    .help-content {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    
+    .help-content p {
+      margin-bottom: 10px;
+      line-height: 1.6;
+    }
+    
+    .help-content ol {
+      margin-left: 20px;
+      line-height: 1.8;
+    }
+    
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 30px;
+    }
+    
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    #save-btn {
+      background: #667eea;
+      color: white;
+    }
+    
+    #save-btn:hover {
+      background: #5a67d8;
+    }
+    
+    #reset-btn {
+      background: #e5e7eb;
+      color: #333;
+    }
+    
+    #reset-btn:hover {
+      background: #d1d5db;
+    }
+  </style>
+  
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
