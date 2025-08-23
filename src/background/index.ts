@@ -254,6 +254,16 @@ class BackgroundService {
     const iconUrl = chrome.runtime.getURL('icons/icon-48.png');
     const notificationId = `notification-${Date.now()}`;
     
+    // 先清除所有现有的通知以避免替换延迟
+    chrome.notifications.getAll((notifications) => {
+      for (const id in notifications) {
+        if (id.startsWith('notification-')) {
+          chrome.notifications.clear(id);
+          this.notificationResults.delete(id);
+        }
+      }
+    });
+    
     const options = {
       type: 'basic' as const,
       iconUrl,
