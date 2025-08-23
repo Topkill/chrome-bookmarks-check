@@ -13,6 +13,15 @@ export default defineConfig({
       clientPort: 5173
     }
   },
+  build: {
+    rollupOptions: {
+      input: {
+        popup: 'src/popup/index.html',
+        options: 'src/options/index.html',
+        results: 'src/results/index.html'
+      }
+    }
+  },
   plugins: [
     vue(),
     crx({ manifest }),

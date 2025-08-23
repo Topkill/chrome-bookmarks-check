@@ -41,6 +41,21 @@ export default defineManifest({
   
   options_page: 'src/options/index.html',
   
+  web_accessible_resources: [
+    {
+      "resources": [
+        "icons/icon-16.png",
+        "icons/icon-32.png",
+        "icons/icon-48.png",
+        "icons/icon-128.png",
+        "src/results/index.html"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  
   icons: {
     16: 'icons/icon-16.png',
     32: 'icons/icon-32.png',
@@ -48,17 +63,4 @@ export default defineManifest({
     128: 'icons/icon-128.png'
   },
   
-  web_accessible_resources: [
-    {
-      "resources": [
-        "icons/icon-16.png",
-        "icons/icon-32.png",
-        "icons/icon-48.png",
-        "icons/icon-128.png"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
-    }
-  ]
 })
