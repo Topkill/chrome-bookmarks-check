@@ -3,6 +3,10 @@ import type { Message, QueryResultPayload, CacheStatusPayload, ExtractAndShowRes
 
 /**
  * Background Service Worker 入口
+ *
+ * 提供两种解决方案：
+ * 1. 快速恢复方案（当前使用）：Service Worker被回收后第一次调用时立即响应
+ * 2. 保活机制方案（注释代码）：防止Service Worker被回收
  */
 class BackgroundService {
   private bookmarkCache: BookmarkCacheService;
@@ -12,37 +16,258 @@ class BackgroundService {
   private singleModalDuration: number = 5; // 单链接弹窗存在时长（秒）
   private multiModalDuration: number = 15; // 多链接弹窗存在时长（秒）
   private notificationResults: Map<string, any> = new Map(); // Store results for notifications
+  private initialized: boolean = false;
+  private initializingPromise: Promise<void> | null = null;
+  private isInitializing: boolean = false;
+
+  // === 保活机制方案相关属性（注释代码） ===
+  // private keepAliveInterval: number | null = null;
 
   constructor() {
+    console.log('[Background] Service Worker 启动');
     this.bookmarkCache = BookmarkCacheService.getInstance();
+    // 立即设置所有事件监听器，确保Service Worker重启时能够立即响应
+    this.setupAllListeners();
+    
+    // === 保活机制方案（注释代码） ===
+    // 如果要使用保活机制，取消注释下面这行，并在manifest.ts中添加'alarms'权限
+    // this.startKeepAlive();
+    
+    // 异步初始化其他服务（不阻塞事件响应）
     this.initialize();
   }
 
-  private async initialize() {
-    console.log('[Background] 初始化开始');
-    try {
-      await this.bookmarkCache.initialize();
-      this.setupMessageListener();
-      this.setupContextMenu();
-      this.setupInstallListener();
-      this.setupNotificationListener();
-      await this.loadSettings();
-      console.log('[Background] 初始化完成');
-    } catch (error) {
-      console.error('[Background] 初始化失败:', error);
+  /**
+   * 设置所有事件监听器
+   * 这些监听器必须在Service Worker启动时立即设置，确保能够响应事件
+   */
+  private setupAllListeners() {
+    // 1. 消息监听器 - 最重要，必须立即响应
+    chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) => {
+      // 创建一个异步处理函数
+      const handleAsync = async () => {
+        try {
+          // 如果还未初始化，先等待初始化完成
+          if (!this.initialized) {
+            console.log('[Background] 等待初始化完成...');
+            await this.ensureInitialized();
+          }
+          
+          // 处理消息
+          const result = await this.handleMessage(message, sender);
+          sendResponse(result);
+        } catch (error: any) {
+          console.error('[Background] 处理消息出错:', error);
+          sendResponse({ error: error.message || '处理消息时发生错误' });
+        }
+      };
+      
+      // 立即开始处理，不阻塞
+      handleAsync();
+      
+      // 返回true表示异步响应
+      return true;
+    });
+
+    // 2. 安装/更新监听器
+    chrome.runtime.onInstalled.addListener(async (details) => {
+      console.log('[Background] onInstalled:', details.reason);
+      if (details.reason === 'install') {
+        chrome.tabs.create({ url: chrome.runtime.getURL('src/options/index.html') });
+        this.showNotification('欢迎使用书签哨兵', '扩展已成功安装！正在初始化书签缓存...');
+        // 强制初始化
+        await this.ensureInitialized();
+      } else if (details.reason === 'update') {
+        await this.ensureInitialized();
+        await this.bookmarkCache.fullRebuild();
+        this.showNotification('书签哨兵已更新', `已更新到版本 ${chrome.runtime.getManifest().version}`);
+      }
+    });
+
+    // 3. 启动监听器
+    chrome.runtime.onStartup.addListener(() => {
+      console.log('[Background] Chrome启动，Service Worker激活');
+      // 触发初始化但不等待
+      this.ensureInitialized();
+    });
+
+    // 4. 上下文菜单点击监听器
+    chrome.contextMenus.onClicked.addListener((info, tab) => {
+      // 确保初始化后处理点击
+      this.ensureInitialized().then(() => {
+        this.handleContextMenuClick(info, tab);
+      });
+    });
+
+    // 5. 通知按钮点击监听器
+    chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) => {
+      if (buttonIndex === 0 && this.notificationResults.has(notificationId)) {
+        const results = this.notificationResults.get(notificationId);
+        this.showResultsInTab(results);
+        this.notificationResults.delete(notificationId);
+      }
+    });
+
+    console.log('[Background] 所有事件监听器已设置');
+  }
+
+  // =============================================
+  // === 保活机制方案（注释代码） ===
+  // =============================================
+  // 如果要使用保活机制，取消注释以下代码块，并在manifest.ts中添加'alarms'权限
+  
+  /*
+  /**
+   * 启动Service Worker保活机制
+   * 使用Chrome Alarms API实现更可靠的保活
+   */
+  /*
+  private startKeepAlive() {
+    // 清除已存在的定时器
+    if (this.keepAliveInterval) {
+      clearInterval(this.keepAliveInterval);
+    }
+
+    // 方案1：使用Chrome Alarms API（更可靠）
+    chrome.alarms.create('keep-alive', {
+      periodInMinutes: 0.5  // 每30秒触发一次
+    });
+
+    // 监听alarm事件
+    if (!chrome.alarms.onAlarm.hasListener(this.handleAlarm)) {
+      chrome.alarms.onAlarm.addListener(this.handleAlarm);
+    }
+
+    // 方案2：同时使用setInterval作为备份（某些情况下alarms可能不够及时）
+    this.keepAliveInterval = setInterval(() => {
+      // 执行一些Chrome API调用来保持活跃
+      this.performKeepAliveTask();
+    }, 20000) as unknown as number;
+
+    console.log('[Background] Keep-alive机制已启动（双重保护）');
+  }
+
+  /**
+   * 处理alarm事件
+   */
+  /*
+  private handleAlarm = (alarm: chrome.alarms.Alarm) => {
+    if (alarm.name === 'keep-alive') {
+      this.performKeepAliveTask();
     }
   }
 
-  private setupMessageListener() {
-    chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) => {
-      this.handleMessage(message, sender)
-        .then(sendResponse)
-        .catch(error => sendResponse({ error: error.message }));
-      return true;
+  /**
+   * 执行保活任务
+   */
+  /*
+  private performKeepAliveTask() {
+    // 执行多个Chrome API调用确保Service Worker保持活跃
+    chrome.runtime.getPlatformInfo(() => {});
+    chrome.storage.local.get(['_keepAlive'], (result) => {
+      // 更新一个时间戳，表示Service Worker仍在运行
+      chrome.storage.local.set({ '_keepAlive': Date.now() });
     });
+    console.log('[Background] Keep-alive ping:', new Date().toISOString());
   }
 
+  /**
+   * 停止保活机制（一般不需要调用）
+   */
+  /*
+  private stopKeepAlive() {
+    // 清除alarm
+    chrome.alarms.clear('keep-alive');
+    
+    // 清除interval
+    if (this.keepAliveInterval) {
+      clearInterval(this.keepAliveInterval);
+      this.keepAliveInterval = null;
+    }
+    
+    console.log('[Background] Keep-alive机制已停止');
+  }
+  */
+
+  // =============================================
+  // === 快速恢复方案（当前使用） ===
+  // =============================================
+
+  /**
+   * 确保Service Worker已初始化
+   * 如果未初始化则触发初始化，如果正在初始化则等待完成
+   */
+  private async ensureInitialized(): Promise<void> {
+    if (this.initialized) {
+      return;
+    }
+
+    if (this.initializingPromise) {
+      return this.initializingPromise;
+    }
+
+    return this.initialize();
+  }
+
+  private async initialize(): Promise<void> {
+    // 防止重复初始化
+    if (this.initialized) {
+      return;
+    }
+
+    if (this.isInitializing) {
+      // 如果正在初始化，等待初始化完成
+      return this.initializingPromise || Promise.resolve();
+    }
+
+    console.log('[Background] 开始初始化...');
+    this.isInitializing = true;
+    const startTime = Date.now();
+
+    this.initializingPromise = (async () => {
+      try {
+        // 1. 加载设置（快速）
+        await this.loadSettings();
+        console.log('[Background] 设置已加载');
+        
+        // 2. 设置上下文菜单（快速）
+        await this.setupContextMenu();
+        console.log('[Background] 上下文菜单已设置');
+        
+        // 3. 初始化书签缓存（可能较慢，但不阻塞基本功能）
+        await this.bookmarkCache.initialize();
+        console.log('[Background] 书签缓存已初始化');
+        
+        this.initialized = true;
+        this.isInitializing = false;
+        const duration = Date.now() - startTime;
+        console.log(`[Background] 初始化完成，耗时 ${duration}ms`);
+      } catch (error) {
+        console.error('[Background] 初始化失败:', error);
+        this.isInitializing = false;
+        this.initializingPromise = null;
+        
+        // 初始化失败不影响基本功能，但会在5秒后重试
+        setTimeout(() => {
+          console.log('[Background] 重新尝试初始化...');
+          this.initialize();
+        }, 5000);
+        
+        throw error;
+      }
+    })();
+
+    return this.initializingPromise;
+  }
+
+
   private async handleMessage(message: Message, sender: chrome.runtime.MessageSender): Promise<any> {
+    console.log('[Background] 处理消息:', message.type);
+    
+    // === 保活机制方案中的消息处理（注释代码） ===
+    // 如果使用保活机制，可以取消注释下面这行来触发保活
+    // this.performKeepAliveTask();
+    
     switch (message.type) {
       case 'QUERY_URLS': {
         const { urls } = message.payload;
@@ -97,44 +322,56 @@ class BackgroundService {
     }
   }
 
-  private setupContextMenu() {
-    chrome.contextMenus.removeAll(() => {
-      chrome.contextMenus.create({ id: 'check-selected-text', title: '提取URL并在书签中搜索', contexts: ['selection'] });
-      chrome.contextMenus.create({ id: 'check-link', title: '检查此链接是否已收藏', contexts: ['link'] });
-      chrome.contextMenus.onClicked.addListener((info, tab) => {
-        if (!tab || tab.id === undefined) return;
-
-        // 检查URL是否为http/https协议
-        if (!tab.url || !tab.url.startsWith('http')) {
-          this.showNotification('提示', '此页面类型不支持此操作。');
-          return;
-        }
-        
-        if (info.menuItemId === 'check-link' && info.linkUrl) {
-          this.checkLinkBookmark(info.linkUrl, tab.id);
-        } else if (info.menuItemId === 'check-selected-text') {
-          chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => window.getSelection()?.toString() },
-            (injectionResults) => {
-              if (chrome.runtime.lastError || !injectionResults || injectionResults.length === 0) return;
-              const selectedText = injectionResults[0].result;
-              if (typeof selectedText === 'string' && selectedText) {
-                this.searchInBookmarks(selectedText, tab.id as number);
-              }
-            }
-          );
+  private async setupContextMenu(): Promise<void> {
+    return new Promise<void>((resolve) => {
+      chrome.contextMenus.removeAll(() => {
+        try {
+          chrome.contextMenus.create({
+            id: 'check-selected-text',
+            title: '提取URL并在书签中搜索',
+            contexts: ['selection']
+          });
+          chrome.contextMenus.create({
+            id: 'check-link',
+            title: '检查此链接是否已收藏',
+            contexts: ['link']
+          });
+          
+          console.log('[Background] 上下文菜单已创建');
+          resolve();
+        } catch (error) {
+          console.error('[Background] 设置上下文菜单失败:', error);
+          resolve(); // 即使失败也继续
         }
       });
     });
   }
-  
-  private setupNotificationListener() {
-    chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) => {
-      if (buttonIndex === 0 && this.notificationResults.has(notificationId)) {
-        const results = this.notificationResults.get(notificationId);
-        this.showResultsInTab(results);
-        this.notificationResults.delete(notificationId);
-      }
-    });
+
+  /**
+   * 处理上下文菜单点击事件
+   */
+  private handleContextMenuClick(info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab) {
+    if (!tab || tab.id === undefined) return;
+
+    // 检查URL是否为http/https协议
+    if (!tab.url || !tab.url.startsWith('http')) {
+      this.showNotification('提示', '此页面类型不支持此操作。');
+      return;
+    }
+    
+    if (info.menuItemId === 'check-link' && info.linkUrl) {
+      this.checkLinkBookmark(info.linkUrl, tab.id);
+    } else if (info.menuItemId === 'check-selected-text') {
+      chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => window.getSelection()?.toString() },
+        (injectionResults) => {
+          if (chrome.runtime.lastError || !injectionResults || injectionResults.length === 0) return;
+          const selectedText = injectionResults[0].result;
+          if (typeof selectedText === 'string' && selectedText) {
+            this.searchInBookmarks(selectedText, tab.id as number);
+          }
+        }
+      );
+    }
   }
 
   private async searchInBookmarks(text: string, tabId: number) {
@@ -316,17 +553,6 @@ class BackgroundService {
     }
   }
 
-  private setupInstallListener() {
-    chrome.runtime.onInstalled.addListener(async (details) => {
-      if (details.reason === 'install') {
-        chrome.tabs.create({ url: chrome.runtime.getURL('src/options/index.html') });
-        this.showNotification('欢迎使用书签哨兵', '扩展已成功安装！正在初始化书签缓存...');
-      } else if (details.reason === 'update') {
-        await this.bookmarkCache.fullRebuild();
-        this.showNotification('书签哨兵已更新', `已更新到版本 ${chrome.runtime.getManifest().version}`);
-      }
-    });
-  }
  
   private async loadSettings() {
     try {
@@ -347,5 +573,28 @@ class BackgroundService {
   }
 }
 
+// 创建全局实例，确保Service Worker重启时能立即初始化
 const backgroundService = new BackgroundService();
-export { BackgroundService };
+
+// 导出实例，方便其他模块使用
+export { backgroundService, BackgroundService };
+
+// 添加全局错误处理，防止Service Worker崩溃
+self.addEventListener('error', (event: ErrorEvent) => {
+  console.error('[Background] 全局错误:', event.error);
+});
+
+self.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+  console.error('[Background] 未处理的Promise拒绝:', event.reason);
+});
+
+// Service Worker激活事件
+self.addEventListener('activate', (event: any) => {
+  console.log('[Background] Service Worker 激活事件触发');
+});
+
+// Service Worker获取焦点事件（从休眠状态唤醒）
+self.addEventListener('fetch', (event: any) => {
+  // Chrome扩展不需要处理fetch事件，但可以用来检测唤醒
+  console.log('[Background] Service Worker 被唤醒');
+});

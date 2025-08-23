@@ -14,6 +14,8 @@ export default defineManifest({
     'notifications',
     'activeTab',
     'scripting'
+    // 如果要使用保活机制方案，取消注释下面这行：
+    // 'alarms'
   ],
   
   background: {
