@@ -9,9 +9,18 @@
       <span class="version">v{{ version }}</span>
     </header>
 
-    <!-- 缓存状态 -->
-    <section class="status-section">
-      <h2>缓存状态</h2>
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn" :class="{ active: activeTab === 'status' }" @click="activeTab = 'status'">状态</button>
+      <button class="tab-btn" :class="{ active: activeTab === 'input' }" @click="activeTab = 'input'">文本输入</button>
+    </div>
+
+    <!-- Tab Content -->
+    <main class="tab-content">
+      <!-- Status Tab -->
+      <div v-if="activeTab === 'status'">
+        <section class="status-section">
+          <h2>缓存状态</h2>
       <div class="status-grid">
         <div class="status-item">
           <span class="label">书签总数</span>
@@ -59,67 +68,45 @@
       </div>
     </section>
 
-    <!-- 文本输入提取 -->
-    <section class="input-section">
-      <h2>文本提取</h2>
-      <textarea v-model="textInput" class="url-textarea" placeholder="在此处粘贴文本以提取URL..."></textarea>
-      <button
-        class="btn btn-info"
-        @click="extractUrlsFromText"
-        :disabled="extracting || !textInput.trim()"
-      >
-        <span v-if="extracting" class="loading-spinner"></span>
-        {{ extracting ? '提取中...' : '从文本中提取URL' }}
-      </button>
-    </section>
+        <section class="actions-section">
+          <button class="btn btn-primary" @click="enableMarking" :disabled="!pageStats || pageStats.isEnabled || markingLoading">
+            <span v-if="markingLoading" class="loading-spinner"></span>
+            {{ markingLoading ? '开启中...' : '手动开启标记' }}
+          </button>
+          <button class="btn btn-secondary" @click="disableMarking" :disabled="!pageStats || !pageStats.isEnabled || markingLoading">
+            <span v-if="markingLoading" class="loading-spinner"></span>
+            {{ markingLoading ? '关闭中...' : '关闭标记' }}
+          </button>
+          <button class="btn btn-secondary" @click="refreshMarks" :disabled="!pageStats || !pageStats.isEnabled || refreshingMarks">
+            <span v-if="refreshingMarks" class="loading-spinner"></span>
+            {{ refreshingMarks ? '刷新中...' : '刷新标记' }}
+          </button>
+          <button class="btn btn-info" @click="extractAllUrls" :disabled="extracting">
+            <span v-if="extracting" class="loading-spinner"></span>
+            {{ extracting ? '提取中...' : '提取页面URL' }}
+          </button>
+          <button class="btn btn-warning" @click="rebuildCache" :disabled="cacheStatus.isBuilding">
+            <span v-if="cacheStatus.isBuilding" class="loading-spinner"></span>
+            {{ cacheStatus.isBuilding ? '重建中...' : '重建缓存' }}
+          </button>
+        </section>
+      </div>
 
-    <!-- 操作按钮 -->
-    <section class="actions-section">
-      <button
-        class="btn btn-primary"
-        @click="enableMarking"
-        :disabled="!pageStats || pageStats.isEnabled || markingLoading"
-      >
-        <span v-if="markingLoading" class="loading-spinner"></span>
-        {{ markingLoading ? '开启中...' : '手动开启标记' }}
-      </button>
-      
-      <button
-        class="btn btn-secondary"
-        @click="disableMarking"
-        :disabled="!pageStats || !pageStats.isEnabled || markingLoading"
-      >
-        <span v-if="markingLoading" class="loading-spinner"></span>
-        {{ markingLoading ? '关闭中...' : '关闭标记' }}
-      </button>
-      
-      <button
-        class="btn btn-secondary"
-        @click="refreshMarks"
-        :disabled="!pageStats || !pageStats.isEnabled || refreshingMarks"
-      >
-        <span v-if="refreshingMarks" class="loading-spinner"></span>
-        {{ refreshingMarks ? '刷新中...' : '刷新标记' }}
-      </button>
-
-      <button
-        class="btn btn-info"
-        @click="extractAllUrls"
-        :disabled="extracting"
-      >
-        <span v-if="extracting" class="loading-spinner"></span>
-        {{ extracting ? '提取中...' : '提取页面URL' }}
-      </button>
-      
-      <button
-        class="btn btn-warning"
-        @click="rebuildCache"
-        :disabled="cacheStatus.isBuilding"
-      >
-        <span v-if="cacheStatus.isBuilding" class="loading-spinner"></span>
-        {{ cacheStatus.isBuilding ? '重建中...' : '重建缓存' }}
-      </button>
-    </section>
+      <!-- Input Tab -->
+      <div v-if="activeTab === 'input'">
+        <section class="input-section">
+          <h2>文本输入</h2>
+          <textarea v-model="textInput" class="url-textarea" placeholder="在此处粘贴文本以提取URL..."></textarea>
+          <div class="input-actions">
+            <button class="btn btn-primary" @click="extractUrlsFromText" :disabled="extracting || !textInput.trim()">
+              <span v-if="extracting" class="loading-spinner"></span>
+              {{ extracting ? '提取中...' : '从文本中提取URL' }}
+            </button>
+            <button class="btn btn-secondary" @click="textInput = ''" :disabled="!textInput.trim()">清空</button>
+          </div>
+        </section>
+      </div>
+    </main>
 
     <!-- URL 编辑模态框 -->
     <div v-if="isEditingUrls" class="modal-overlay">
@@ -164,6 +151,7 @@ import type { CacheStatusPayload } from '@/types/messaging';
 
 // 响应式数据
 const version = ref('1.0.0');
+const activeTab = ref('status'); // 'status' or 'input'
 const textInput = ref('');
 const isEditingUrls = ref(false);
 const urlsToEditText = ref('');
@@ -574,13 +562,15 @@ onUnmounted(() => {
 
 <style scoped>
 .popup-container {
-  width: 380px; /* 稍微加宽以容纳新元素 */
-  min-height: 400px;
+  width: 380px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   padding: 0;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  height: 550px; /* Fixed height */
 }
 
 .header {
@@ -589,7 +579,6 @@ onUnmounted(() => {
   align-items: center;
   padding: 16px 20px;
   background: rgba(0, 0, 0, 0.1);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .logo {
@@ -613,11 +602,46 @@ onUnmounted(() => {
   opacity: 0.8;
 }
 
-/* 状态区域 */
-.status-section,
-.stats-section {
+.tabs {
+  display: flex;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 12px 0;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s;
+}
+
+.tab-btn:hover {
+  color: white;
+}
+
+.tab-btn.active {
+  color: white;
+}
+
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: white;
+}
+
+.tab-content {
+  flex: 1;
   padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  overflow-y: auto;
 }
 
 h2 {
@@ -651,45 +675,44 @@ h2 {
   font-weight: 600;
 }
 
-.value.ready {
-  color: #4ade80;
+.value.ready { color: #4ade80; }
+.value.building { color: #fbbf24; }
+.value.highlight { color: #fbbf24; }
+.value.status-on { color: #4ade80; }
+.value.status-off { color: rgba(255, 255, 255, 0.6); }
+
+.actions-section {
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.value.building {
-  color: #fbbf24;
-}
-
-.value.highlight {
-  color: #fbbf24;
-}
-
-.value.status-on {
-  color: #4ade80;
-  font-weight: 600;
-}
-
-.value.status-off {
-  color: rgba(255, 255, 255, 0.6);
-}
-
-/* 文本输入 */
 .input-section {
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .url-textarea {
+  flex: 1;
   width: 100%;
-  height: 100px;
-  padding: 8px;
-  border-radius: 6px;
+  padding: 12px;
+  border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.1);
   color: white;
   font-family: inherit;
-  font-size: 13px;
-  resize: vertical;
-  margin-bottom: 10px;
+  font-size: 14px;
+  resize: none;
+  margin-bottom: 12px;
+  backdrop-filter: blur(10px);
+  min-height: 100px; /* 至少有100像素高 */
+  max-height: 400px; /* 最高不能超过400像素 */
+}
+
+.url-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .url-textarea:focus {
@@ -697,11 +720,8 @@ h2 {
   border-color: rgba(255, 255, 255, 0.5);
 }
 
-/* 操作按钮 */
-.actions-section {
-  padding: 16px 20px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.input-actions {
+  display: flex;
   gap: 10px;
 }
 
@@ -714,6 +734,9 @@ h2 {
   cursor: pointer;
   transition: all 0.2s;
   outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn:disabled {
@@ -721,55 +744,32 @@ h2 {
   cursor: not-allowed;
 }
 
-.btn-primary {
-  background: white;
-  color: #764ba2;
+.actions-section .btn {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+}
+.actions-section .btn:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
-.btn-primary:not(:disabled):hover {
-  background: #f3f4f6;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+.actions-section .btn.btn-info {
+  background: #3b82f6;
+}
+.actions-section .btn.btn-warning {
+  background: #f59e0b;
 }
 
-.btn-primary:active {
-  transform: translateY(0);
+.input-actions .btn-primary {
+  flex: 2;
+  background: rgba(255, 255, 255, 0.9);
+  color: #4c51bf;
 }
-
-.btn-secondary {
+.input-actions .btn-secondary {
+  flex: 1;
   background: rgba(255, 255, 255, 0.2);
   color: white;
 }
 
-.btn-secondary:not(:disabled):hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.btn-secondary:active {
-  transform: translateY(0);
-}
-
-.btn-warning {
-  background: #fbbf24;
-  color: #78350f;
-}
-
-.btn-warning:not(:disabled):hover {
-  background: #f59e0b;
-}
-
-.btn-info {
-  background: #3b82f6;
-  color: white;
-}
-
-.btn-info:not(:disabled):hover {
-  background: #2563eb;
-}
-
-/* 加载动画 */
 .loading-spinner {
   display: inline-block;
   width: 14px;
@@ -779,91 +779,16 @@ h2 {
   border-top-color: white;
   animation: spin 0.8s linear infinite;
   margin-right: 6px;
-  vertical-align: middle;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
-/* 进度条 */
-.progress-section {
-  padding: 16px 20px;
-  background: rgba(0, 0, 0, 0.1);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.progress-bar {
-  width: 100%;
-  height: 8px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 8px;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #4ade80, #22c55e);
-  border-radius: 4px;
-  transition: width 0.3s ease;
-  box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
-}
-
-.progress-text {
-  font-size: 12px;
-  text-align: center;
-  opacity: 0.9;
-  margin: 0;
-}
-
-/* 通知提示 */
-.notification {
-  position: fixed;
-  bottom: 60px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 10px 20px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  z-index: 1000;
-  animation: slideUp 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.notification.success {
-  background: #4ade80;
-  color: #14532d;
-}
-
-.notification.error {
-  background: #f87171;
-  color: #7f1d1d;
-}
-
-.notification.info {
-  background: #60a5fa;
-  color: #1e3a8a;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-/* 底部 */
 .footer {
   padding: 12px 20px;
   text-align: center;
   font-size: 12px;
   background: rgba(0, 0, 0, 0.1);
+  margin-top: auto; /* Push to bottom */
 }
 
 .footer a {
@@ -883,7 +808,7 @@ h2 {
   opacity: 0.4;
 }
 
-/* 模态框样式 */
+/* Modal styles remain the same */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -898,7 +823,7 @@ h2 {
 }
 
 .modal-content {
-  background: #2d3748; /* 深色背景 */
+  background: #2d3748;
   padding: 24px;
   border-radius: 8px;
   width: 90%;
@@ -909,7 +834,7 @@ h2 {
 
 .modal-content h2 {
   margin-top: 0;
-  color: #a0aec0; /* 浅灰色标题 */
+  color: #a0aec0;
 }
 
 .modal-content p {
@@ -921,6 +846,8 @@ h2 {
 .modal-content .url-textarea {
   height: 200px;
   font-size: 14px;
+  background: rgba(0,0,0,0.2);
+  border-color: rgba(255,255,255,0.2);
 }
 
 .modal-actions {
