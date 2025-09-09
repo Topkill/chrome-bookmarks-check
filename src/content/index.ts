@@ -314,7 +314,7 @@ class ContentScript {
     links.forEach(link => {
       const href = (link as HTMLAnchorElement).href;
       if (this.isValidUrl(href)) {
-        urls.add(this.normalizeUrl(href));
+        urls.add(href);
       }
     });
     
@@ -328,7 +328,7 @@ class ContentScript {
       if (matches) {
         matches.forEach(url => {
           if (this.isValidUrl(url)) {
-            urls.add(this.normalizeUrl(url));
+            urls.add(url);
           }
         });
       }
