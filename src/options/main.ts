@@ -146,13 +146,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       await chrome.storage.local.set({ settings });
 
-      try {
-        await chrome.runtime.sendMessage({ type: 'RELOAD_SETTINGS' });
-      } catch (e) {
-        console.warn('Background script might not be ready:', e);
-      }
+      // 异步发送消息，不等待后台处理完成，让UI立即响应
+      chrome.runtime.sendMessage({ type: 'RELOAD_SETTINGS' }).catch(e => {
+        console.warn('Background script might not be ready, but settings are saved:', e);
+      });
 
-      showMessage('✅ 设置已保存！', true);
+      showMessage('✅ 设置已保存！后台将自动应用更改。', true);
     } catch (error) {
       console.error('保存设置失败:', error);
       showMessage('❌ 保存失败，请重试', false);

@@ -194,7 +194,7 @@ function showNotification(message: string, type: string = 'success') {
   notification.value = { show: true, message, type };
   setTimeout(() => {
     notification.value.show = false;
-  }, 3000);
+  }, 5000);
 }
 
 // 计算属性
@@ -806,6 +806,32 @@ h2 {
 .separator {
   margin: 0 8px;
   opacity: 0.4;
+}
+
+/* 操作提示 */
+.notification {
+  position: absolute;
+  bottom: 60px;
+  left: 20px;
+  right: 20px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: white;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: opacity 0.3s, transform 0.3s;
+}
+.notification.success {
+  background: #28a745;
+}
+.notification.error {
+  background: #dc3545;
+}
+.notification.info {
+  background: #17a2b8;
 }
 
 /* Modal styles remain the same */
