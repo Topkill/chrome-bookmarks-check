@@ -1,5 +1,5 @@
 import { BookmarkCacheService } from './services/bookmark-cache-service';
-import type { Message, QueryResultPayload, CacheStatusPayload, ExtractAndShowResultsMessage, ReloadSettingsMessage, ShowSingleLinkResultMessage, ShowMultipleLinksResultMessage } from '@/types/messaging';
+import type { Message, QueryResultPayload, CacheStatusPayload, ExtractAndShowResultsMessage, ReloadSettingsMessage, ShowSingleLinkResultMessage, ShowMultipleLinksResultMessage, CheckUrlsAndShowResultsMessage } from '@/types/messaging';
 
 /**
  * Background Service Worker 入口
@@ -16,6 +16,13 @@ class BackgroundService {
   private singleModalDuration: number = 5; // 单链接弹窗存在时长（秒）
   private multiModalDuration: number = 15; // 多链接弹窗存在时长（秒）
   private notificationResults: Map<string, any> = new Map(); // Store results for notifications
+ 
+  // URL 编辑设置
+  private editBeforeCheckSingleLink: boolean = false;
+  private editBeforeCheckMultiLink: boolean = false;
+  private editBeforeCheckPopupPage: boolean = false;
+  private editBeforeCheckPopupText: boolean = false;
+ 
   private initialized: boolean = false;
   private initializingPromise: Promise<void> | null = null;
   private isInitializing: boolean = false;
@@ -299,7 +306,8 @@ class BackgroundService {
             const resultsData = {
               originalText: `从页面 ${tab.title || tab.url} 提取的URL`,
               results: detailedResults,
-              isPageExtraction: true
+              isPageExtraction: true,
+              source: 'popup-page-extraction'
             };
             this.showResults(resultsData, tab.id);
             return { success: true };
@@ -316,6 +324,45 @@ class BackgroundService {
       case 'SHOW_SINGLE_LINK_RESULT':
       case 'SHOW_MULTIPLE_LINKS_RESULT':
         return; // These are outgoing messages, not handled here.
+      case 'CHECK_URLS_AND_SHOW_RESULTS': {
+        const { urls } = (message as CheckUrlsAndShowResultsMessage).payload;
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab || tab.id === undefined) throw new Error('无法获取当前标签页');
+
+        const detailedResults = await this.bookmarkCache.queryUrlsWithDetails(urls);
+        const resultsData = {
+          originalText: `来自用户输入的 ${urls.length} 个URL`,
+          results: detailedResults,
+          isPageExtraction: false,
+          source: 'popup-text-extraction'
+        };
+        this.showResults(resultsData, tab.id);
+        return { success: true };
+      }
+      case 'CHECK_EDITED_URLS': {
+        const { urls, source } = message.payload;
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab || tab.id === undefined) throw new Error('无法获取当前标签页');
+
+        const detailedResults = await this.bookmarkCache.queryUrlsWithDetails(urls);
+        const resultsData = {
+          originalText: `来自编辑后的 ${urls.length} 个URL`,
+          results: detailedResults,
+          source: source
+        };
+        // 从编辑模态框返回后，总是直接显示结果，不再进行编辑判断
+        const isSingle = urls.length === 1;
+        const actionSetting = isSingle ? this.singleLinkAction : this.multiLinkAction;
+        if (actionSetting === 'page') {
+          this.showResultsInTab(resultsData);
+        } else {
+          this.showResults(resultsData, tab.id, isSingle, true); // forceShow = true
+        }
+        return { success: true };
+      }
+      case 'SHOW_URL_EDIT_MODAL':
+        // This is an outgoing message, not handled here.
+        return;
       default:
         const exhaustiveCheck: never = message;
         throw new Error(`未知的消息类型: ${(exhaustiveCheck as any)?.type}`);
@@ -382,12 +429,21 @@ class BackgroundService {
       
       if (urls.length > 0) {
         const detailedResults = await this.bookmarkCache.queryUrlsWithDetails(urls);
-        resultsData = { originalText: text, results: detailedResults };
+        resultsData = {
+          originalText: text,
+          results: detailedResults,
+          source: 'context-menu-multi-link'
+        };
         // 判断是单链接还是多链接
         isSingle = urls.length === 1;
       } else {
         const results = await chrome.bookmarks.search(text);
-        resultsData = { isTextSearch: true, originalText: text, query: text, results: results.map(b => ({ title: b.title, url: b.url })) };
+        resultsData = {
+          isTextSearch: true,
+          originalText: text,
+          query: text,
+          results: results.map(b => ({ title: b.title, url: b.url }))
+        };
         // 文本搜索通常返回多个结果，视为多链接
         isSingle = false;
       }
@@ -421,7 +477,11 @@ class BackgroundService {
   private async checkLinkBookmark(url: string, tabId: number) {
     try {
       const [result] = await this.bookmarkCache.queryUrlsWithDetails([url]);
-      const resultsData = { originalText: url, results: [result] };
+      const resultsData = {
+        originalText: url,
+        results: [result],
+        source: 'context-menu-single-link'
+      };
       this.showResults(resultsData, tabId, true);
     } catch (error) {
       console.error('[Background] 检查链接失败:', error);
@@ -429,7 +489,23 @@ class BackgroundService {
     }
   }
 
-  private showResults(resultsData: any, tabId: number, isSingle: boolean = false) {
+  private showResults(resultsData: any, tabId: number, isSingle: boolean = false, forceShow: boolean = false) {
+    const source = resultsData.source;
+    let shouldEdit = false;
+    
+    if (source === 'context-menu-single-link' && this.editBeforeCheckSingleLink) shouldEdit = true;
+    if (source === 'context-menu-multi-link' && this.editBeforeCheckMultiLink) shouldEdit = true;
+    // Popup 内部的编辑逻辑由 popup 自己处理
+    
+    if (shouldEdit && !forceShow) {
+      const urls = resultsData.results.map((r: any) => r.original);
+      chrome.tabs.sendMessage(tabId, {
+        type: 'SHOW_URL_EDIT_MODAL',
+        payload: { urls, source: resultsData.source }
+      });
+      return;
+    }
+ 
     // 根据是单链接还是多链接选择相应的设置
     const actionSetting = isSingle ? this.singleLinkAction : this.multiLinkAction;
     
@@ -562,6 +638,13 @@ class BackgroundService {
       this.notificationDuration = settings?.notificationDuration ?? 15;
       this.singleModalDuration = settings?.singleModalDuration ?? 5;
       this.multiModalDuration = settings?.multiModalDuration ?? 15;
+ 
+      // 加载URL编辑设置
+      this.editBeforeCheckSingleLink = settings?.editBeforeCheckSingleLink ?? false;
+      this.editBeforeCheckMultiLink = settings?.editBeforeCheckMultiLink ?? false;
+      this.editBeforeCheckPopupPage = settings?.editBeforeCheckPopupPage ?? false;
+      this.editBeforeCheckPopupText = settings?.editBeforeCheckPopupText ?? false;
+ 
       console.log('[Background] 单链接结果提示方式设置为:', this.singleLinkAction);
       console.log('[Background] 多链接结果提示方式设置为:', this.multiLinkAction);
       console.log('[Background] 通知存在时长设置为:', this.notificationDuration, '秒');

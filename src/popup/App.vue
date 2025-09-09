@@ -59,6 +59,20 @@
       </div>
     </section>
 
+    <!-- 文本输入提取 -->
+    <section class="input-section">
+      <h2>文本提取</h2>
+      <textarea v-model="textInput" class="url-textarea" placeholder="在此处粘贴文本以提取URL..."></textarea>
+      <button
+        class="btn btn-info"
+        @click="extractUrlsFromText"
+        :disabled="extracting || !textInput.trim()"
+      >
+        <span v-if="extracting" class="loading-spinner"></span>
+        {{ extracting ? '提取中...' : '从文本中提取URL' }}
+      </button>
+    </section>
+
     <!-- 操作按钮 -->
     <section class="actions-section">
       <button
@@ -107,6 +121,19 @@
       </button>
     </section>
 
+    <!-- URL 编辑模态框 -->
+    <div v-if="isEditingUrls" class="modal-overlay">
+      <div class="modal-content">
+        <h2>编辑URL (共 {{ editingUrlCount }} 个)</h2>
+        <p>每行一个URL。您可以修改或删除列表中的URL。</p>
+        <textarea v-model="urlsToEditText" class="url-textarea"></textarea>
+        <div class="modal-actions">
+          <button class="btn btn-primary" @click="confirmEditAndCheck">查询</button>
+          <button class="btn btn-secondary" @click="cancelEdit">取消</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 进度提示 -->
     <div v-if="cacheStatus.isBuilding" class="progress-section">
       <div class="progress-bar">
@@ -137,6 +164,14 @@ import type { CacheStatusPayload } from '@/types/messaging';
 
 // 响应式数据
 const version = ref('1.0.0');
+const textInput = ref('');
+const isEditingUrls = ref(false);
+const urlsToEditText = ref('');
+const userSettings = ref({
+  editBeforeCheckPopupPage: false,
+  editBeforeCheckPopupText: false
+});
+
 const cacheStatus = ref<CacheStatusPayload>({
   version: 1,
   bookmarkCount: 0,
@@ -198,6 +233,10 @@ const lastUpdateTime = computed(() => {
 
 const statusClass = computed(() => {
   return cacheStatus.value.isBuilding ? 'building' : 'ready';
+});
+
+const editingUrlCount = computed(() => {
+  return urlsToEditText.value.split('\n').map(url => url.trim()).filter(Boolean).length;
 });
 
 // 方法
@@ -360,24 +399,96 @@ function simulateProgress() {
 }
 
 async function extractAllUrls() {
- if (extracting.value) return;
+  if (extracting.value) return;
 
- try {
-   extracting.value = true;
-   
-   // 向 background 发送消息，请求提取并显示结果
-   await chrome.runtime.sendMessage({
-     type: 'EXTRACT_AND_SHOW_RESULTS'
-   });
+  try {
+    extracting.value = true;
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.id) {
+      showNotification('无法访问当前页面', 'error');
+      return;
+    }
 
-   // 稍后自动关闭弹窗
-   setTimeout(() => window.close(), 500);
+    // 请求 content script 提取链接
+    const response = await chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_ALL_URLS' });
+    if (response && response.urls && response.urls.length > 0) {
+      await handleUrlExtraction(response.urls, 'page');
+    } else {
+      showNotification('未在页面上找到任何URL', 'info');
+    }
+  } catch (error) {
+    console.error('提取页面URL失败:', error);
+    showNotification('提取URL失败，请刷新页面重试', 'error');
+  } finally {
+    extracting.value = false;
+  }
+}
 
- } catch (error) {
-   console.error('提取URL并显示结果失败:', error);
- } finally {
-   extracting.value = false;
- }
+async function extractUrlsFromText() {
+  if (extracting.value || !textInput.value.trim()) return;
+
+  try {
+    extracting.value = true;
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const urls = textInput.value.match(urlRegex) || [];
+    
+    if (urls.length > 0) {
+      // 去重
+      const uniqueUrls = [...new Set(urls)];
+      await handleUrlExtraction(uniqueUrls, 'text');
+    } else {
+      showNotification('未在文本中找到任何URL', 'info');
+    }
+  } catch (error) {
+    console.error('从文本中提取URL失败:', error);
+  } finally {
+    extracting.value = false;
+  }
+}
+
+async function handleUrlExtraction(urls: string[], source: 'page' | 'text') {
+  let shouldEdit = false;
+  if (source === 'page' && userSettings.value.editBeforeCheckPopupPage) {
+    shouldEdit = true;
+  }
+  if (source === 'text' && userSettings.value.editBeforeCheckPopupText) {
+    shouldEdit = true;
+  }
+ 
+  if (shouldEdit) {
+    urlsToEditText.value = urls.join('\n');
+    isEditingUrls.value = true;
+  } else {
+    await checkUrlsAndShowResults(urls);
+  }
+}
+
+async function confirmEditAndCheck() {
+  const urls = urlsToEditText.value.split('\n').map(url => url.trim()).filter(Boolean);
+  if (urls.length > 0) {
+    await checkUrlsAndShowResults(urls);
+  } else {
+    showNotification('URL列表为空', 'info');
+  }
+  isEditingUrls.value = false;
+}
+
+function cancelEdit() {
+  isEditingUrls.value = false;
+  urlsToEditText.value = '';
+}
+
+async function checkUrlsAndShowResults(urls: string[]) {
+  try {
+    await chrome.runtime.sendMessage({
+      type: 'CHECK_URLS_AND_SHOW_RESULTS',
+      payload: { urls }
+    });
+    setTimeout(() => window.close(), 300);
+  } catch (error) {
+    console.error('检查URL并显示结果失败:', error);
+    showNotification('查询失败，请重试', 'error');
+  }
 }
 
 function openOptions() {
@@ -428,11 +539,19 @@ onMounted(async () => {
   // 加载版本号
   const manifest = chrome.runtime.getManifest();
   version.value = manifest.version;
+
+  async function loadSettings() {
+    const result = await chrome.storage.local.get('settings');
+    if (result.settings) {
+      userSettings.value = { ...userSettings.value, ...result.settings };
+    }
+  }
   
   // 加载初始数据
   await Promise.all([
     loadCacheStatus(),
-    loadPageStats()
+    loadPageStats(),
+    loadSettings()
   ]);
   
   // 如果正在构建，开始轮询
@@ -455,7 +574,7 @@ onUnmounted(() => {
 
 <style scoped>
 .popup-container {
-  width: 360px;
+  width: 380px; /* 稍微加宽以容纳新元素 */
   min-height: 400px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -553,11 +672,36 @@ h2 {
   color: rgba(255, 255, 255, 0.6);
 }
 
+/* 文本输入 */
+.input-section {
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.url-textarea {
+  width: 100%;
+  height: 100px;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.2);
+  color: white;
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+  margin-bottom: 10px;
+}
+
+.url-textarea:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
 /* 操作按钮 */
 .actions-section {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
 
@@ -737,5 +881,52 @@ h2 {
 .separator {
   margin: 0 8px;
   opacity: 0.4;
+}
+
+/* 模态框样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.modal-content {
+  background: #2d3748; /* 深色背景 */
+  padding: 24px;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  color: white;
+}
+
+.modal-content h2 {
+  margin-top: 0;
+  color: #a0aec0; /* 浅灰色标题 */
+}
+
+.modal-content p {
+  font-size: 14px;
+  color: #a0aec0;
+  margin-bottom: 16px;
+}
+
+.modal-content .url-textarea {
+  height: 200px;
+  font-size: 14px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
 }
 </style>

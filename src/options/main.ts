@@ -54,6 +54,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // 基本设置
         (document.getElementById('enable-auto-marking') as HTMLInputElement).checked = result.settings.enableAutoMarking ?? false;
         (document.getElementById('show-notifications') as HTMLInputElement).checked = result.settings.showNotifications ?? true;
+        // URL 编辑设置
+        (document.getElementById('edit-before-check-single-link') as HTMLInputElement).checked = result.settings.editBeforeCheckSingleLink ?? false;
+        (document.getElementById('edit-before-check-multi-link') as HTMLInputElement).checked = result.settings.editBeforeCheckMultiLink ?? false;
+        (document.getElementById('edit-before-check-popup-page') as HTMLInputElement).checked = result.settings.editBeforeCheckPopupPage ?? false;
+        (document.getElementById('edit-before-check-popup-text') as HTMLInputElement).checked = result.settings.editBeforeCheckPopupText ?? false;
        
         // 单链接操作设置
         const singleLinkAction = result.settings.singleLinkAction ?? 'page';
@@ -91,6 +96,12 @@ document.addEventListener('DOMContentLoaded', () => {
     (document.getElementById('show-notifications') as HTMLInputElement).checked = true;
    (document.querySelector('input[name="single-link-action"][value="page"]') as HTMLInputElement).checked = true;
     (document.querySelector('input[name="multi-link-action"][value="page"]') as HTMLInputElement).checked = true;
+    
+    // URL 编辑设置
+    (document.getElementById('edit-before-check-single-link') as HTMLInputElement).checked = false;
+    (document.getElementById('edit-before-check-multi-link') as HTMLInputElement).checked = false;
+    (document.getElementById('edit-before-check-popup-page') as HTMLInputElement).checked = false;
+    (document.getElementById('edit-before-check-popup-text') as HTMLInputElement).checked = false;
     (document.getElementById('batch-size') as HTMLInputElement).value = '50';
     (document.getElementById('cache-days') as HTMLInputElement).value = '7';
     
@@ -115,6 +126,12 @@ document.addEventListener('DOMContentLoaded', () => {
         showNotifications: (document.getElementById('show-notifications') as HTMLInputElement).checked,
        singleLinkAction: (document.querySelector('input[name="single-link-action"]:checked') as HTMLInputElement).value,
        multiLinkAction: (document.querySelector('input[name="multi-link-action"]:checked') as HTMLInputElement).value,
+       
+        // URL 编辑设置
+        editBeforeCheckSingleLink: (document.getElementById('edit-before-check-single-link') as HTMLInputElement).checked,
+        editBeforeCheckMultiLink: (document.getElementById('edit-before-check-multi-link') as HTMLInputElement).checked,
+        editBeforeCheckPopupPage: (document.getElementById('edit-before-check-popup-page') as HTMLInputElement).checked,
+        editBeforeCheckPopupText: (document.getElementById('edit-before-check-popup-text') as HTMLInputElement).checked,
        batchSize: parseInt((document.getElementById('batch-size') as HTMLInputElement).value),
         cacheDays: parseInt((document.getElementById('cache-days') as HTMLInputElement).value),
         notificationDuration: parseInt((document.getElementById('notification-duration') as HTMLInputElement).value),

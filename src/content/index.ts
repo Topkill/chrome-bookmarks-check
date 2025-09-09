@@ -211,6 +211,10 @@ class ContentScript {
           case 'SHOW_MULTIPLE_LINKS_RESULT':
             this.showResultModal(message.payload.results.results, message.payload.modalDuration);
             return { success: true };
+
+          case 'SHOW_URL_EDIT_MODAL':
+            this.showUrlEditModal(message.payload.urls, message.payload.source);
+            return { success: true };
             
           default:
             return { error: '未知消息类型' };
@@ -514,6 +518,56 @@ class ContentScript {
   private truncateUrl(url: string, maxLength: number = 60): string {
     if (!url || url.length <= maxLength) return url || '';
     return url.substring(0, maxLength - 3) + '...';
+  }
+
+  private showUrlEditModal(urls: string[], source: string) {
+    const existingModal = document.getElementById('bookmark-sentry-edit-modal');
+    if (existingModal) existingModal.remove();
+
+    const modalOverlay = document.createElement('div');
+    modalOverlay.id = 'bookmark-sentry-edit-modal';
+    modalOverlay.style.cssText = `
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.6); z-index: 99999998;
+      display: flex; justify-content: center; align-items: center;
+    `;
+
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+      background: #fff; padding: 24px; border-radius: 8px; width: 90%;
+      max-width: 500px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+      color: #333; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
+
+    const urlCount = urls.length;
+    modalContent.innerHTML = `
+      <h2 style="margin-top: 0; color: #111;">编辑URL (共 ${urlCount} 个)</h2>
+      <p style="font-size: 14px; color: #666; margin-bottom: 16px;">每行一个URL。您可以修改或删除列表中的URL。</p>
+      <textarea id="bookmark-sentry-edit-textarea" style="width: 100%; height: 200px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; resize: vertical;"></textarea>
+      <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px;">
+        <button id="bookmark-sentry-edit-confirm" style="padding: 10px 16px; border: none; border-radius: 6px; background: #2563eb; color: white; cursor: pointer;">查询</button>
+        <button id="bookmark-sentry-edit-cancel" style="padding: 10px 16px; border: none; border-radius: 6px; background: #e5e7eb; color: #333; cursor: pointer;">取消</button>
+      </div>
+    `;
+
+    modalOverlay.appendChild(modalContent);
+    document.body.appendChild(modalOverlay);
+
+    const textarea = document.getElementById('bookmark-sentry-edit-textarea') as HTMLTextAreaElement;
+    textarea.value = urls.join('\n');
+
+    document.getElementById('bookmark-sentry-edit-confirm')?.addEventListener('click', () => {
+      const editedUrls = textarea.value.split('\n').map(url => url.trim()).filter(Boolean);
+      chrome.runtime.sendMessage({
+        type: 'CHECK_EDITED_URLS',
+        payload: { urls: editedUrls, source }
+      });
+      modalOverlay.remove();
+    });
+
+    document.getElementById('bookmark-sentry-edit-cancel')?.addEventListener('click', () => {
+      modalOverlay.remove();
+    });
   }
 }
 
