@@ -375,7 +375,7 @@ class BackgroundService {
         try {
           chrome.contextMenus.create({
             id: 'check-selected-text',
-            title: '提取URL并在书签中搜索',
+            title: '从选中文本提取链接并检查是否已收藏',
             contexts: ['selection']
           });
           chrome.contextMenus.create({

@@ -83,7 +83,7 @@
           </button>
           <button class="btn btn-info" @click="extractAllUrls" :disabled="extracting">
             <span v-if="extracting" class="loading-spinner"></span>
-            {{ extracting ? '提取中...' : '提取页面URL' }}
+            {{ extracting ? '提取中...' : '提取当前页面的链接' }}
           </button>
           <button class="btn btn-warning" @click="rebuildCache" :disabled="cacheStatus.isBuilding">
             <span v-if="cacheStatus.isBuilding" class="loading-spinner"></span>
@@ -96,11 +96,11 @@
       <div v-if="activeTab === 'input'">
         <section class="input-section">
           <h2>文本输入</h2>
-          <textarea v-model="textInput" class="url-textarea" placeholder="在此处粘贴文本以提取URL..."></textarea>
+          <textarea v-model="textInput" class="url-textarea" placeholder="在此处粘贴文本以提取链接..."></textarea>
           <div class="input-actions">
             <button class="btn btn-primary" @click="extractUrlsFromText" :disabled="extracting || !textInput.trim()">
               <span v-if="extracting" class="loading-spinner"></span>
-              {{ extracting ? '提取中...' : '从文本中提取URL' }}
+              {{ extracting ? '提取中...' : '从文本中提取链接' }}
             </button>
             <button class="btn btn-secondary" @click="textInput = ''" :disabled="!textInput.trim()">清空</button>
           </div>
