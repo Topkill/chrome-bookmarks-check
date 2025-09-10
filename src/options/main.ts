@@ -68,6 +68,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const multiLinkAction = result.settings.multiLinkAction ?? 'page';
         (document.querySelector(`input[name="multi-link-action"][value="${multiLinkAction}"]`) as HTMLInputElement).checked = true;
 
+        // 通知详情操作
+        const notificationDetailAction = result.settings.notificationDetailAction ?? 'page';
+        (document.querySelector(`input[name="notification-detail-action"][value="${notificationDetailAction}"]`) as HTMLInputElement).checked = true;
+
         (document.getElementById('batch-size') as HTMLInputElement).value = result.settings.batchSize ?? 50;
         (document.getElementById('cache-days') as HTMLInputElement).value = result.settings.cacheDays ?? 7;
         (document.getElementById('notification-duration') as HTMLInputElement).value = result.settings.notificationDuration ?? 15;
@@ -84,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 如果没有保存的设置，则应用默认值
         resetForm();
       }
+      toggleNotificationDetailOptions(); // 更新子选项的可见性
     } catch (error) {
       console.error('加载设置失败:', error);
     }
@@ -96,6 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
     (document.getElementById('show-notifications') as HTMLInputElement).checked = true;
    (document.querySelector('input[name="single-link-action"][value="page"]') as HTMLInputElement).checked = true;
     (document.querySelector('input[name="multi-link-action"][value="page"]') as HTMLInputElement).checked = true;
+    (document.querySelector('input[name="notification-detail-action"][value="page"]') as HTMLInputElement).checked = true;
     
     // URL 编辑设置
     (document.getElementById('edit-before-check-single-link') as HTMLInputElement).checked = false;
@@ -118,6 +124,17 @@ document.addEventListener('DOMContentLoaded', () => {
     (document.getElementById('ignore-hash') as HTMLInputElement).checked = false;
   }
 
+  //切换通知详情选项的可见性
+  function toggleNotificationDetailOptions() {
+    const multiLinkAction = (document.querySelector('input[name="multi-link-action"]:checked') as HTMLInputElement).value;
+    const detailOptions = document.getElementById('notification-detail-options') as HTMLDivElement;
+    if (multiLinkAction === 'notification') {
+      detailOptions.style.display = 'block';
+    } else {
+      detailOptions.style.display = 'none';
+    }
+  }
+
   // 保存设置
   document.getElementById('save-btn')?.addEventListener('click', async () => {
     try {
@@ -126,6 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showNotifications: (document.getElementById('show-notifications') as HTMLInputElement).checked,
        singleLinkAction: (document.querySelector('input[name="single-link-action"]:checked') as HTMLInputElement).value,
        multiLinkAction: (document.querySelector('input[name="multi-link-action"]:checked') as HTMLInputElement).value,
+       notificationDetailAction: (document.querySelector('input[name="notification-detail-action"]:checked') as HTMLInputElement).value,
        
         // URL 编辑设置
         editBeforeCheckSingleLink: (document.getElementById('edit-before-check-single-link') as HTMLInputElement).checked,
@@ -162,6 +180,18 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('reset-btn')?.addEventListener('click', () => {
     resetForm();
     showMessage('✅ 已恢复默认设置，请点击"保存设置"应用更改', true);
+  });
+
+  // 恢复默认
+  document.getElementById('reset-btn')?.addEventListener('click', () => {
+    resetForm();
+    toggleNotificationDetailOptions();
+    showMessage('✅ 已恢复默认设置，请点击"保存设置"应用更改', true);
+  });
+
+  // 为多链接操作的单选按钮添加事件监听器
+  document.querySelectorAll('input[name="multi-link-action"]').forEach(radio => {
+    radio.addEventListener('change', toggleNotificationDetailOptions);
   });
 
   // 初始化

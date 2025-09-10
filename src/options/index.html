@@ -52,6 +52,13 @@
               <label><input type="radio" name="multi-link-action" value="page" checked> <strong>打开新页面</strong> - 显示最详细的结果</label>
               <label><input type="radio" name="multi-link-action" value="modal"> <strong>页面内弹窗</strong> - 在当前页面右上角弹出临时窗口</label>
               <label><input type="radio" name="multi-link-action" value="notification"> <strong>系统通知</strong> - 使用操作系统的通知系统提示</label>
+              <div id="notification-detail-options" class="sub-options">
+                <small>点击系统通知的“查看详情”按钮后:</small>
+                <div class="radio-group" style="gap: 8px; margin-top: 8px;">
+                  <label><input type="radio" name="notification-detail-action" value="page" checked> 打开新页面</label>
+                  <label><input type="radio" name="notification-detail-action" value="modal"> 显示页面内弹窗</label>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -280,6 +287,18 @@
     }
     .radio-group input[type="radio"] {
       margin-right: 8px;
+    }
+
+    .sub-options {
+      margin-left: 25px;
+      margin-top: 10px;
+      padding-left: 15px;
+      border-left: 2px solid #e5e7eb;
+      display: none; /* 默认隐藏 */
+    }
+    .sub-options small {
+        margin-left: 0;
+        margin-bottom: 10px;
     }
 
     small {

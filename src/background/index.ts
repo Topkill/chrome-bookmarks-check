@@ -15,6 +15,7 @@ class BackgroundService {
   private notificationDuration: number = 15; // 通知存在时长（秒）
   private singleModalDuration: number = 5; // 单链接弹窗存在时长（秒）
   private multiModalDuration: number = 15; // 多链接弹窗存在时长（秒）
+  private notificationDetailAction: 'page' | 'modal' = 'page'; // 通知详情的展现方式
   private notificationResults: Map<string, any> = new Map(); // Store results for notifications
  
   // URL 编辑设置
@@ -110,7 +111,26 @@ class BackgroundService {
     chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) => {
       if (buttonIndex === 0 && this.notificationResults.has(notificationId)) {
         const results = this.notificationResults.get(notificationId);
-        this.showResultsInTab(results);
+        
+        // 根据新设置决定如何显示详情
+        if (this.notificationDetailAction === 'page') {
+          this.showResultsInTab(results);
+        } else {
+          // 在当前活动标签页显示模态框
+          chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            if (tabs[0] && tabs[0].id) {
+              const tabId = tabs[0].id;
+              const isSingle = results.results.length === 1;
+              const messageType = isSingle ? 'SHOW_SINGLE_LINK_RESULT' : 'SHOW_MULTIPLE_LINKS_RESULT';
+              const modalDuration = isSingle ? this.singleModalDuration : this.multiModalDuration;
+              const payload = isSingle
+                ? { result: results.results[0], modalDuration }
+                : { results: results, modalDuration };
+              chrome.tabs.sendMessage(tabId, { type: messageType, payload });
+            }
+          });
+        }
+        
         this.notificationResults.delete(notificationId);
       }
     });
@@ -622,6 +642,7 @@ class BackgroundService {
       this.notificationDuration = settings?.notificationDuration ?? 15;
       this.singleModalDuration = settings?.singleModalDuration ?? 5;
       this.multiModalDuration = settings?.multiModalDuration ?? 15;
+      this.notificationDetailAction = settings?.notificationDetailAction ?? 'page';
  
       // 加载URL编辑设置
       this.editBeforeCheckSingleLink = settings?.editBeforeCheckSingleLink ?? false;
