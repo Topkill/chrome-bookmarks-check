@@ -121,6 +121,7 @@ function renderUrlSearchResults(data: { originalText: string; results: BookmarkQ
     const style = document.createElement('style');
     style.id = styleId;
     style.textContent = `
+      body { font-size: 14px; line-height: 1.3; }
       .collapsible .collapsible-header { cursor: pointer; position: relative; }
       .collapsible .collapsible-header::after { content: '\\25B8'; position: absolute; right: 10px; font-size: 12px; transition: transform 0.2s; transform: rotate(90deg); }
       .collapsible.collapsed .collapsible-header::after { transform: rotate(0deg); }
