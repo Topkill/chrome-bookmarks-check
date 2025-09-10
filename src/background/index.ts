@@ -291,35 +291,8 @@ class BackgroundService {
         return { success: true };
       case 'EXTRACT_AND_SHOW_RESULTS': {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab || tab.id === undefined) throw new Error('无法获取当前标签页');
-        
-        // 检查URL是否有效
-        if (!tab.url || !tab.url.startsWith('http')) {
-          this.showNotification('提示', '此页面类型不支持提取URL。');
-          return { success: false, message: '无效的页面类型' };
-        }
-        
-        try {
-          const response = await chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_ALL_URLS' });
-          if (response && response.urls && response.urls.length > 0) {
-            const detailedResults = await this.bookmarkCache.queryUrlsWithDetails(response.urls);
-            const resultsData = {
-              originalText: `从页面 ${tab.title || tab.url} 提取的URL`,
-              results: detailedResults,
-              isPageExtraction: true,
-              source: 'popup-page-extraction'
-            };
-            this.showResults(resultsData, tab.id);
-            return { success: true };
-          } else {
-            this.showNotification('提示', '当前页面未提取到有效URL。');
-            return { success: false, message: '未能从页面提取到URL' };
-          }
-        } catch (error) {
-          console.error('[Background] 提取页面URL失败:', error);
-          this.showNotification('错误', '提取页面URL失败，请刷新页面或检查控制台。');
-          throw error;
-        }
+        if (!tab) throw new Error('无法获取当前标签页');
+        return this.extractAndShowResults(tab);
       }
       case 'SHOW_SINGLE_LINK_RESULT':
       case 'SHOW_MULTIPLE_LINKS_RESULT':
@@ -383,6 +356,12 @@ class BackgroundService {
             title: '检查此链接是否已收藏',
             contexts: ['link']
           });
+
+          chrome.contextMenus.create({
+            id: 'extract-all-links',
+            title: '提取当前页面的所有链接',
+            contexts: ['page']
+          });
           
           console.log('[Background] 上下文菜单已创建');
           resolve();
@@ -418,6 +397,8 @@ class BackgroundService {
           }
         }
       );
+    } else if (info.menuItemId === 'extract-all-links' && tab) {
+      this.extractAndShowResults(tab, 'context-menu-page-extraction');
     }
   }
 
@@ -495,6 +476,9 @@ class BackgroundService {
     
     if (source === 'context-menu-single-link' && this.editBeforeCheckSingleLink) shouldEdit = true;
     if (source === 'context-menu-multi-link' && this.editBeforeCheckMultiLink) shouldEdit = true;
+    if ((source === 'popup-page-extraction' || source === 'context-menu-page-extraction') && this.editBeforeCheckPopupPage) {
+      shouldEdit = true;
+    }
     // Popup 内部的编辑逻辑由 popup 自己处理
     
     if (shouldEdit && !forceShow) {
@@ -652,6 +636,45 @@ class BackgroundService {
       console.log('[Background] 多链接弹窗存在时长设置为:', this.multiModalDuration, '秒');
     } catch (error) {
       console.error('[Background] 加载设置失败:', error);
+    }
+  }
+
+  /**
+   * 提取并显示页面上的所有链接
+   * @param tab 目标标签页
+   * @param source 调用来源，默认为 'popup-page-extraction'
+   */
+  private async extractAndShowResults(tab: chrome.tabs.Tab, source: string = 'popup-page-extraction') {
+    if (!tab || tab.id === undefined) {
+      throw new Error('无法获取当前标签页');
+    }
+
+    // 检查URL是否有效
+    if (!tab.url || !tab.url.startsWith('http')) {
+      this.showNotification('提示', '此页面类型不支持提取URL。');
+      return { success: false, message: '无效的页面类型' };
+    }
+
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_ALL_URLS' });
+      if (response && response.urls && response.urls.length > 0) {
+        const detailedResults = await this.bookmarkCache.queryUrlsWithDetails(response.urls);
+        const resultsData = {
+          originalText: `从页面 ${tab.title || tab.url} 提取的URL`,
+          results: detailedResults,
+          isPageExtraction: true,
+          source: source
+        };
+        this.showResults(resultsData, tab.id);
+        return { success: true };
+      } else {
+        this.showNotification('提示', '当前页面未提取到有效URL。');
+        return { success: false, message: '未能从页面提取到URL' };
+      }
+    } catch (error) {
+      console.error('[Background] 提取页面URL失败:', error);
+      this.showNotification('错误', '提取页面URL失败，请刷新页面或检查控制台。');
+      throw error;
     }
   }
 }
