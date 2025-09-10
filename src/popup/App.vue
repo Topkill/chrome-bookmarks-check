@@ -485,7 +485,7 @@ function openOptions() {
 
 function openHelp() {
   chrome.tabs.create({
-    url: chrome.runtime.getURL('src/options/index.html#help')
+    url: chrome.runtime.getURL('src/help/index.html')
   });
 }
 

@@ -50,7 +50,8 @@ export default defineManifest({
         "icons/icon-32.png",
         "icons/icon-48.png",
         "icons/icon-128.png",
-        "src/results/index.html"
+        "src/results/index.html",
+        "src/help/index.html"
       ],
       "matches": [
         "<all_urls>"
