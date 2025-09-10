@@ -451,16 +451,26 @@ class ContentScript {
     if (isMultiple) {
       // 多链接结果显示
       const total = results.length;
-      const bookmarked = results.filter(r => r.isBookmarked).length;
-      const title = `<h3 style="margin-top:0; margin-bottom: 15px; font-size: 16px; color: #111;">🔍 检查结果 (${bookmarked}/${total})</h3>`;
+      const bookmarkedCount = results.filter(r => r.isBookmarked).length;
+      const unbookmarkedCount = total - bookmarkedCount;
+      const title = `<h3 style="margin-top:0; margin-bottom: 15px; font-size: 16px; color: #111;">🔍 检查结果 (${bookmarkedCount}/${total})</h3>`;
       
       content = title;
+      
+      // 添加筛选按钮区域
+      content += `
+        <div id="modal-filter-bar" style="margin-bottom: 15px;">
+            <button class="filter-btn active" data-filter="all">全部 (${total})</button>
+            <button class="filter-btn" data-filter="bookmarked">已收藏 (${bookmarkedCount})</button>
+            <button class="filter-btn" data-filter="unbookmarked">未收藏 (${unbookmarkedCount})</button>
+        </div>
+      `;
 
       //  添加一键打开按钮区域
       content += `<div id="modal-actions-bar" style="margin-bottom: 15px;"></div>`;
       content += `<div id="modal-batch-controls"></div>`;
 
-      content += `<div style="max-height: 260px; overflow-y: auto; margin-top: 10px;">`;
+      content += `<div id="modal-results-list" style="max-height: 260px; overflow-y: auto; margin-top: 10px;">`;
       
       results.forEach((result, index) => {
         const statusIcon = result.isBookmarked ? '✅' : '❌';
@@ -468,7 +478,7 @@ class ContentScript {
         const borderColor = result.isBookmarked ? '#28a745' : '#dc3545';
         
         content += `
-          <div style="
+          <div class="sentry-result-item" data-is-bookmarked="${result.isBookmarked}" style="
             border: 1px solid ${borderColor};
             border-radius: 6px;
             padding: 12px;
@@ -515,6 +525,7 @@ class ContentScript {
 
     if (isMultiple) {
       this.renderModalActionButtons(results);
+      this.setupModalFilterLogic();
     }
  
     document.getElementById('bookmark-sentry-modal-close')?.addEventListener('click', () => {
@@ -596,6 +607,48 @@ class ContentScript {
       });
   }
   
+  private setupModalFilterLogic() {
+    const filterBar = document.getElementById('modal-filter-bar');
+    if (!filterBar) return;
+
+    const styleId = 'bookmark-sentry-modal-filter-styles';
+    if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+            #modal-filter-bar .filter-btn { padding: 5px 10px; border: 1px solid #ccc; border-radius: 4px; background-color: #f8f9fa; cursor: pointer; font-size: 12px; margin-right: 8px; }
+            #modal-filter-bar .filter-btn.active { background-color: #007bff; color: white; border-color: #007bff; }
+        `;
+        document.head.appendChild(style);
+    }
+
+    filterBar.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        if (!target.matches('.filter-btn')) return;
+
+        filterBar.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+        target.classList.add('active');
+
+        const filter = target.dataset.filter;
+        const items = document.querySelectorAll('#modal-results-list .sentry-result-item');
+
+        items.forEach(item => {
+            const el = item as HTMLElement;
+            const isBookmarked = el.dataset.isBookmarked === 'true';
+            
+            let shouldShow = false;
+            if (filter === 'all') {
+                shouldShow = true;
+            } else if (filter === 'bookmarked') {
+                shouldShow = isBookmarked;
+            } else if (filter === 'unbookmarked') {
+                shouldShow = !isBookmarked;
+            }
+            el.style.display = shouldShow ? 'block' : 'none';
+        });
+    });
+  }
+
   private renderModalActionButtons(results: any[]) {
     const container = document.getElementById('modal-actions-bar');
     if (!container) return;

@@ -115,6 +115,21 @@ function renderUrlSearchResults(data: { originalText: string; results: BookmarkQ
   const bookmarkedItems = results.filter(item => item.isBookmarked);
   const unbookmarkedItems = results.filter(item => !item.isBookmarked);
 
+  // Inject styles for new components
+  const styleId = 'results-page-styles';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      .collapsible .collapsible-header { cursor: pointer; position: relative; }
+      .collapsible .collapsible-header::after { content: '\\25B8'; position: absolute; right: 10px; font-size: 12px; transition: transform 0.2s; transform: rotate(90deg); }
+      .collapsible.collapsed .collapsible-header::after { transform: rotate(0deg); }
+      .collapsible .collapsible-content { display: block; padding-top: 10px; }
+      .collapsible.collapsed .collapsible-content { display: none; }
+    `;
+    document.head.appendChild(style);
+  }
+
   // 渲染操作按钮
   renderActionButtons(actionsContainer, {
     bookmarked: bookmarkedItems.map(i => i.original),
@@ -137,30 +152,57 @@ function renderUrlSearchResults(data: { originalText: string; results: BookmarkQ
   originalTextSection.appendChild(pre);
   container.appendChild(originalTextSection);
 
+  const urlListThreshold = 10;
+
+  const createUrlListHtml = (title: string, items: {url: string, text?: string}[], isCollapsible: boolean) => {
+    const listContent = items.map(item => `<li><a href="${item.url}" target="_blank">${item.text || item.url}</a></li>`).join('');
+
+    if (isCollapsible) {
+        return `
+            <div class="result-section collapsible">
+                <h2 class="collapsible-header">${title} (${items.length})</h2>
+                <div class="collapsible-content">
+                    <ul style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; padding: 10px;">
+                        ${listContent}
+                    </ul>
+                </div>
+            </div>
+        `;
+    } else {
+        return `
+            <div class="result-section">
+                <h2>${title}</h2>
+                <ul>
+                    ${listContent}
+                </ul>
+            </div>
+        `;
+    }
+  };
+
+  const originalUrls = results.map(item => ({ url: item.original }));
+  const normalizedUrls = results.map(item => ({ url: item.normalized }));
+
   // 渲染其余内容
   let otherHtml = `
     <div class="result-section">
       <h2>摘要</h2>
       <p>检查了 ${results.length} 个URL，找到 ${bookmarkedItems.length} 个已收藏，${unbookmarkedItems.length} 个未收藏。</p>
     </div>
-    <div class="result-section">
-      <h2>提取到的URL</h2>
-      <ul>
-        ${results.map(item => `<li><a href="${item.original}" target="_blank">${item.original}</a></li>`).join('')}
-      </ul>
+    <div id="filter-bar" class="result-section" style="padding: 10px; background-color: #f7f7f7; border-radius: 5px;">
+        <button id="filter-all" style="margin-right: 8px;">查看全部 (${results.length})</button>
+        <button id="filter-bookmarked" style="margin-right: 8px;">查看已收藏 (${bookmarkedItems.length})</button>
+        <button id="filter-unbookmarked">查看未收藏 (${unbookmarkedItems.length})</button>
     </div>
-    <div class="result-section">
-      <h2>规范化后的URL</h2>
-      <ul>
-        ${results.map(item => `<li><a href="${item.normalized}" target="_blank">${item.normalized}</a></li>`).join('')}
-      </ul>
-    </div>
-    <div class="result-section">
+    
+    ${createUrlListHtml('提取到的URL', originalUrls, results.length > urlListThreshold)}
+    ${createUrlListHtml('规范化后的URL', normalizedUrls, results.length > urlListThreshold)}
+    
+    <div class="result-section" id="bookmarked-section">
       <h2>已收藏的详情</h2>
       <ul>
         ${bookmarkedItems.length > 0
           ? bookmarkedItems.map(item => {
-            // 只有当书签URL与原始URL有实质性差异时才显示
             const shouldShowBookmarkUrl = item.bookmarkUrl &&
               item.bookmarkUrl.toLowerCase() !== item.original.toLowerCase() &&
               !areUrlsEssentiallySame(item.bookmarkUrl, item.original);
@@ -176,15 +218,11 @@ function renderUrlSearchResults(data: { originalText: string; results: BookmarkQ
         }
       </ul>
     </div>
-    <div class="result-section">
+    <div class="result-section" id="unbookmarked-section">
       <h2>未收藏的详情</h2>
       <ul>
         ${unbookmarkedItems.length > 0
-          ? unbookmarkedItems.map(item => `
-            <li>
-              <a href="${item.original}" target="_blank">${item.original}</a>
-            </li>
-          `).join('')
+          ? unbookmarkedItems.map(item => `<li><a href="${item.original}" target="_blank">${item.original}</a></li>`).join('')
           : '<li>无</li>'
         }
       </ul>
@@ -192,6 +230,38 @@ function renderUrlSearchResults(data: { originalText: string; results: BookmarkQ
   `;
 
   container.insertAdjacentHTML('beforeend', otherHtml);
+  
+  // Add event listeners for collapsibles
+  document.querySelectorAll('.collapsible-header').forEach(header => {
+    header.addEventListener('click', event => {
+      const collapsible = (event.currentTarget as HTMLElement).parentElement;
+      collapsible?.classList.toggle('collapsed');
+    });
+  });
+
+  // Add event listeners for filters
+  const bookmarkedSection = document.getElementById('bookmarked-section') as HTMLElement;
+  const unbookmarkedSection = document.getElementById('unbookmarked-section') as HTMLElement;
+
+  if (bookmarkedSection && unbookmarkedSection) {
+    const filterBar = document.getElementById('filter-bar');
+    
+    document.getElementById('filter-all')?.addEventListener('click', () => {
+      bookmarkedSection.style.display = 'block';
+      unbookmarkedSection.style.display = 'block';
+      filterBar?.scrollIntoView({ behavior: 'smooth' });
+    });
+    document.getElementById('filter-bookmarked')?.addEventListener('click', () => {
+      bookmarkedSection.style.display = 'block';
+      unbookmarkedSection.style.display = 'none';
+      bookmarkedSection.scrollIntoView({ behavior: 'smooth' });
+    });
+    document.getElementById('filter-unbookmarked')?.addEventListener('click', () => {
+      bookmarkedSection.style.display = 'none';
+      unbookmarkedSection.style.display = 'block';
+      unbookmarkedSection.scrollIntoView({ behavior: 'smooth' });
+    });
+  }
 }
 
 // 批量打开链接的管理器 (与 content/index.ts 同步)
