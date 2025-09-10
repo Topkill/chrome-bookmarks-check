@@ -150,7 +150,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import type { CacheStatusPayload } from '@/types/messaging';
 
 // 响应式数据
-const version = ref('1.0.0');
+const version = ref('...');
 const activeTab = ref('status'); // 'status' or 'input'
 const textInput = ref('');
 const isEditingUrls = ref(false);
