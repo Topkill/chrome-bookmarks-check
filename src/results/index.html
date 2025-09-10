@@ -14,6 +14,34 @@
     a { text-decoration: none; color: #0066cc; }
     a:hover { text-decoration: underline; }
     .meta { font-size: 0.9em; color: #666; }
+    .actions-bar {
+      background-color: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 2em;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .actions-bar button {
+      padding: 8px 15px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      background-color: #fff;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .actions-bar button:hover {
+      background-color: #f0f0f0;
+    }
+    .batch-controls {
+      display: none; /* Initially hidden */
+      margin-top: 1em;
+      padding: 10px;
+      background-color: #fff8e1;
+      border: 1px solid #ffecb3;
+      border-radius: 5px;
+    }
     pre {
       white-space: pre-wrap;
       word-wrap: break-word;
@@ -26,6 +54,7 @@
 </head>
 <body>
   <h1>书签搜索结果</h1>
+  <div id="actions-container"></div>
   <div id="results-container">
     <p>正在加载结果...</p>
   </div>

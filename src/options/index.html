@@ -160,6 +160,11 @@
             <label for="multi-modal-duration">多个链接页面内弹窗持续时间 (秒):</label>
             <input type="number" id="multi-modal-duration" value="15" min="0" max="300">
           </div>
+          <div class="setting-item">
+              <label for="batch-open-size">每批次打开链接的个数:</label>
+              <input type="number" id="batch-open-size" value="5" min="1" max="50">
+              <small>使用“一键打开”功能时，每次批量打开的标签页数量。设置较小的值可以防止浏览器因一次性打开过多标签页而卡顿。</small>
+          </div>
         </section>
         
         <div class="actions">

@@ -17,6 +17,7 @@ class BackgroundService {
   private multiModalDuration: number = 15; // 多链接弹窗存在时长（秒）
   private notificationDetailAction: 'page' | 'modal' = 'page'; // 通知详情的展现方式
   private notificationResults: Map<string, any> = new Map(); // Store results for notifications
+  private batchOpenSize: number = 5; // 每批次打开链接的数量
  
   // URL 编辑设置
   private editBeforeCheckSingleLink: boolean = false;
@@ -308,6 +309,15 @@ class BackgroundService {
       case 'RELOAD_SETTINGS':
         await this.bookmarkCache.reloadSettings();
         await this.loadSettings();
+        // 通知所有内容脚本设置已更新
+        chrome.tabs.query({}, (tabs) => {
+          for (const tab of tabs) {
+            // 只向有权限访问的页面发送消息
+            if (tab.id && tab.url && !tab.url.startsWith('chrome')) {
+              chrome.tabs.sendMessage(tab.id, { type: 'SETTINGS_UPDATED' }).catch(e => { /* content script may not be active or injected, ignore */ });
+            }
+          }
+        });
         return { success: true };
       case 'EXTRACT_AND_SHOW_RESULTS': {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -354,6 +364,12 @@ class BackgroundService {
         return { success: true };
       }
       case 'SHOW_URL_EDIT_MODAL':
+        // This is an outgoing message, not handled here.
+        return;
+      case 'OPEN_TAB':
+        chrome.tabs.create({ url: message.payload.url, active: false });
+        return { success: true };
+      case 'SETTINGS_UPDATED':
         // This is an outgoing message, not handled here.
         return;
       default:
@@ -643,6 +659,7 @@ class BackgroundService {
       this.singleModalDuration = settings?.singleModalDuration ?? 5;
       this.multiModalDuration = settings?.multiModalDuration ?? 15;
       this.notificationDetailAction = settings?.notificationDetailAction ?? 'page';
+      this.batchOpenSize = settings?.batchOpenSize ?? 5;
  
       // 加载URL编辑设置
       this.editBeforeCheckSingleLink = settings?.editBeforeCheckSingleLink ?? false;

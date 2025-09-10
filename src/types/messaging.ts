@@ -78,6 +78,14 @@ export interface CheckEditedUrlsMessage {
  };
 }
 
+// Content -> Background to open a new tab
+export interface OpenTabMessage {
+ type: 'OPEN_TAB';
+ payload: {
+   url: string;
+ };
+}
+
 // All message types
 export type Message =
   | QueryUrlsMessage
@@ -89,7 +97,14 @@ export type Message =
   | ShowMultipleLinksResultMessage
   | CheckUrlsAndShowResultsMessage
   | ShowUrlEditModalMessage
-  | CheckEditedUrlsMessage;
+  | CheckEditedUrlsMessage
+  | OpenTabMessage
+  | SettingsUpdatedMessage;
+ 
+// Background -> Content to notify of settings changes
+export interface SettingsUpdatedMessage {
+  type: 'SETTINGS_UPDATED';
+}
 
 // Bookmark Cache Interface
 export interface BookmarkCache {

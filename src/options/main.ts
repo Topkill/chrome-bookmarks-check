@@ -77,7 +77,8 @@ document.addEventListener('DOMContentLoaded', () => {
         (document.getElementById('notification-duration') as HTMLInputElement).value = result.settings.notificationDuration ?? 15;
         (document.getElementById('single-modal-duration') as HTMLInputElement).value = result.settings.singleModalDuration ?? 5;
         (document.getElementById('multi-modal-duration') as HTMLInputElement).value = result.settings.multiModalDuration ?? 15;
-
+        (document.getElementById('batch-open-size') as HTMLInputElement).value = result.settings.batchOpenSize ?? 5;
+ 
         // URL匹配设置（默认全部关闭）
         (document.getElementById('ignore-protocol') as HTMLInputElement).checked = result.settings.ignoreProtocol ?? false;
         (document.getElementById('ignore-trailing-slash') as HTMLInputElement).checked = result.settings.ignoreTrailingSlash ?? false;
@@ -115,7 +116,8 @@ document.addEventListener('DOMContentLoaded', () => {
     (document.getElementById('notification-duration') as HTMLInputElement).value = '15';
     (document.getElementById('single-modal-duration') as HTMLInputElement).value = '5';
     (document.getElementById('multi-modal-duration') as HTMLInputElement).value = '15';
-
+    (document.getElementById('batch-open-size') as HTMLInputElement).value = '5';
+ 
     // URL匹配设置（默认全部关闭）
     (document.getElementById('ignore-protocol') as HTMLInputElement).checked = false;
     (document.getElementById('ignore-trailing-slash') as HTMLInputElement).checked = false;
@@ -155,6 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
         notificationDuration: parseInt((document.getElementById('notification-duration') as HTMLInputElement).value),
         singleModalDuration: parseInt((document.getElementById('single-modal-duration') as HTMLInputElement).value),
         multiModalDuration: parseInt((document.getElementById('multi-modal-duration') as HTMLInputElement).value),
+        batchOpenSize: parseInt((document.getElementById('batch-open-size') as HTMLInputElement).value),
         ignoreProtocol: (document.getElementById('ignore-protocol') as HTMLInputElement).checked,
         ignoreTrailingSlash: (document.getElementById('ignore-trailing-slash') as HTMLInputElement).checked,
         ignoreCase: (document.getElementById('ignore-case') as HTMLInputElement).checked,
