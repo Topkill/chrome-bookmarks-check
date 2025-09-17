@@ -9,9 +9,18 @@
       <span class="version">v{{ version }}</span>
     </header>
 
-    <!-- 缓存状态 -->
-    <section class="status-section">
-      <h2>缓存状态</h2>
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn" :class="{ active: activeTab === 'status' }" @click="activeTab = 'status'">状态</button>
+      <button class="tab-btn" :class="{ active: activeTab === 'input' }" @click="activeTab = 'input'">文本输入</button>
+    </div>
+
+    <!-- Tab Content -->
+    <main class="tab-content">
+      <!-- Status Tab -->
+      <div v-if="activeTab === 'status'">
+        <section class="status-section">
+          <h2>缓存状态</h2>
       <div class="status-grid">
         <div class="status-item">
           <span class="label">书签总数</span>
@@ -59,53 +68,58 @@
       </div>
     </section>
 
-    <!-- 操作按钮 -->
-    <section class="actions-section">
-      <button
-        class="btn btn-primary"
-        @click="enableMarking"
-        :disabled="!pageStats || pageStats.isEnabled || markingLoading"
-      >
-        <span v-if="markingLoading" class="loading-spinner"></span>
-        {{ markingLoading ? '开启中...' : '手动开启标记' }}
-      </button>
-      
-      <button
-        class="btn btn-secondary"
-        @click="disableMarking"
-        :disabled="!pageStats || !pageStats.isEnabled || markingLoading"
-      >
-        <span v-if="markingLoading" class="loading-spinner"></span>
-        {{ markingLoading ? '关闭中...' : '关闭标记' }}
-      </button>
-      
-      <button
-        class="btn btn-secondary"
-        @click="refreshMarks"
-        :disabled="!pageStats || !pageStats.isEnabled || refreshingMarks"
-      >
-        <span v-if="refreshingMarks" class="loading-spinner"></span>
-        {{ refreshingMarks ? '刷新中...' : '刷新标记' }}
-      </button>
+        <section class="actions-section">
+          <button class="btn btn-primary" @click="enableMarking" :disabled="!pageStats || pageStats.isEnabled || markingLoading">
+            <span v-if="markingLoading" class="loading-spinner"></span>
+            {{ markingLoading ? '开启中...' : '手动开启标记' }}
+          </button>
+          <button class="btn btn-secondary" @click="disableMarking" :disabled="!pageStats || !pageStats.isEnabled || markingLoading">
+            <span v-if="markingLoading" class="loading-spinner"></span>
+            {{ markingLoading ? '关闭中...' : '关闭标记' }}
+          </button>
+          <button class="btn btn-secondary" @click="refreshMarks" :disabled="!pageStats || !pageStats.isEnabled || refreshingMarks">
+            <span v-if="refreshingMarks" class="loading-spinner"></span>
+            {{ refreshingMarks ? '刷新中...' : '刷新标记' }}
+          </button>
+          <button class="btn btn-info" @click="extractAllUrls" :disabled="extracting">
+            <span v-if="extracting" class="loading-spinner"></span>
+            {{ extracting ? '提取中...' : '提取当前页面的链接' }}
+          </button>
+          <button class="btn btn-warning" @click="rebuildCache" :disabled="cacheStatus.isBuilding">
+            <span v-if="cacheStatus.isBuilding" class="loading-spinner"></span>
+            {{ cacheStatus.isBuilding ? '重建中...' : '重建缓存' }}
+          </button>
+        </section>
+      </div>
 
-      <button
-        class="btn btn-info"
-        @click="extractAllUrls"
-        :disabled="extracting"
-      >
-        <span v-if="extracting" class="loading-spinner"></span>
-        {{ extracting ? '提取中...' : '提取页面URL' }}
-      </button>
-      
-      <button
-        class="btn btn-warning"
-        @click="rebuildCache"
-        :disabled="cacheStatus.isBuilding"
-      >
-        <span v-if="cacheStatus.isBuilding" class="loading-spinner"></span>
-        {{ cacheStatus.isBuilding ? '重建中...' : '重建缓存' }}
-      </button>
-    </section>
+      <!-- Input Tab -->
+      <div v-if="activeTab === 'input'">
+        <section class="input-section">
+          <h2>文本输入</h2>
+          <textarea v-model="textInput" class="url-textarea" placeholder="在此处粘贴文本以提取链接..."></textarea>
+          <div class="input-actions">
+            <button class="btn btn-primary" @click="extractUrlsFromText" :disabled="extracting || !textInput.trim()">
+              <span v-if="extracting" class="loading-spinner"></span>
+              {{ extracting ? '提取中...' : '从文本中提取链接' }}
+            </button>
+            <button class="btn btn-secondary" @click="textInput = ''" :disabled="!textInput.trim()">清空</button>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- URL 编辑模态框 -->
+    <div v-if="isEditingUrls" class="modal-overlay">
+      <div class="modal-content">
+        <h2>编辑URL (共 {{ editingUrlCount }} 个)</h2>
+        <p>每行一个URL。您可以修改或删除列表中的URL。</p>
+        <textarea v-model="urlsToEditText" class="url-textarea"></textarea>
+        <div class="modal-actions">
+          <button class="btn btn-primary" @click="confirmEditAndCheck">查询</button>
+          <button class="btn btn-secondary" @click="cancelEdit">取消</button>
+        </div>
+      </div>
+    </div>
 
     <!-- 进度提示 -->
     <div v-if="cacheStatus.isBuilding" class="progress-section">
@@ -136,7 +150,16 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import type { CacheStatusPayload } from '@/types/messaging';
 
 // 响应式数据
-const version = ref('1.0.0');
+const version = ref('...');
+const activeTab = ref('status'); // 'status' or 'input'
+const textInput = ref('');
+const isEditingUrls = ref(false);
+const urlsToEditText = ref('');
+const userSettings = ref({
+  editBeforeCheckPopupPage: false,
+  editBeforeCheckPopupText: false
+});
+
 const cacheStatus = ref<CacheStatusPayload>({
   version: 1,
   bookmarkCount: 0,
@@ -171,7 +194,7 @@ function showNotification(message: string, type: string = 'success') {
   notification.value = { show: true, message, type };
   setTimeout(() => {
     notification.value.show = false;
-  }, 3000);
+  }, 5000);
 }
 
 // 计算属性
@@ -198,6 +221,10 @@ const lastUpdateTime = computed(() => {
 
 const statusClass = computed(() => {
   return cacheStatus.value.isBuilding ? 'building' : 'ready';
+});
+
+const editingUrlCount = computed(() => {
+  return urlsToEditText.value.split('\n').map(url => url.trim()).filter(Boolean).length;
 });
 
 // 方法
@@ -360,24 +387,96 @@ function simulateProgress() {
 }
 
 async function extractAllUrls() {
- if (extracting.value) return;
+  if (extracting.value) return;
 
- try {
-   extracting.value = true;
-   
-   // 向 background 发送消息，请求提取并显示结果
-   await chrome.runtime.sendMessage({
-     type: 'EXTRACT_AND_SHOW_RESULTS'
-   });
+  try {
+    extracting.value = true;
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.id) {
+      showNotification('无法访问当前页面', 'error');
+      return;
+    }
 
-   // 稍后自动关闭弹窗
-   setTimeout(() => window.close(), 500);
+    // 请求 content script 提取链接
+    const response = await chrome.tabs.sendMessage(tab.id, { type: 'EXTRACT_ALL_URLS' });
+    if (response && response.urls && response.urls.length > 0) {
+      await handleUrlExtraction(response.urls, 'page');
+    } else {
+      showNotification('未在页面上找到任何URL', 'info');
+    }
+  } catch (error) {
+    console.error('提取页面URL失败:', error);
+    showNotification('提取URL失败，请刷新页面重试', 'error');
+  } finally {
+    extracting.value = false;
+  }
+}
 
- } catch (error) {
-   console.error('提取URL并显示结果失败:', error);
- } finally {
-   extracting.value = false;
- }
+async function extractUrlsFromText() {
+  if (extracting.value || !textInput.value.trim()) return;
+
+  try {
+    extracting.value = true;
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const urls = textInput.value.match(urlRegex) || [];
+    
+    if (urls.length > 0) {
+      // 去重
+      const uniqueUrls = [...new Set(urls)];
+      await handleUrlExtraction(uniqueUrls, 'text');
+    } else {
+      showNotification('未在文本中找到任何URL', 'info');
+    }
+  } catch (error) {
+    console.error('从文本中提取URL失败:', error);
+  } finally {
+    extracting.value = false;
+  }
+}
+
+async function handleUrlExtraction(urls: string[], source: 'page' | 'text') {
+  let shouldEdit = false;
+  if (source === 'page' && userSettings.value.editBeforeCheckPopupPage) {
+    shouldEdit = true;
+  }
+  if (source === 'text' && userSettings.value.editBeforeCheckPopupText) {
+    shouldEdit = true;
+  }
+ 
+  if (shouldEdit) {
+    urlsToEditText.value = urls.join('\n');
+    isEditingUrls.value = true;
+  } else {
+    await checkUrlsAndShowResults(urls);
+  }
+}
+
+async function confirmEditAndCheck() {
+  const urls = urlsToEditText.value.split('\n').map(url => url.trim()).filter(Boolean);
+  if (urls.length > 0) {
+    await checkUrlsAndShowResults(urls);
+  } else {
+    showNotification('URL列表为空', 'info');
+  }
+  isEditingUrls.value = false;
+}
+
+function cancelEdit() {
+  isEditingUrls.value = false;
+  urlsToEditText.value = '';
+}
+
+async function checkUrlsAndShowResults(urls: string[]) {
+  try {
+    await chrome.runtime.sendMessage({
+      type: 'CHECK_URLS_AND_SHOW_RESULTS',
+      payload: { urls }
+    });
+    setTimeout(() => window.close(), 300);
+  } catch (error) {
+    console.error('检查URL并显示结果失败:', error);
+    showNotification('查询失败，请重试', 'error');
+  }
 }
 
 function openOptions() {
@@ -386,7 +485,7 @@ function openOptions() {
 
 function openHelp() {
   chrome.tabs.create({
-    url: chrome.runtime.getURL('src/options/index.html#help')
+    url: chrome.runtime.getURL('src/help/index.html')
   });
 }
 
@@ -428,11 +527,19 @@ onMounted(async () => {
   // 加载版本号
   const manifest = chrome.runtime.getManifest();
   version.value = manifest.version;
+
+  async function loadSettings() {
+    const result = await chrome.storage.local.get('settings');
+    if (result.settings) {
+      userSettings.value = { ...userSettings.value, ...result.settings };
+    }
+  }
   
   // 加载初始数据
   await Promise.all([
     loadCacheStatus(),
-    loadPageStats()
+    loadPageStats(),
+    loadSettings()
   ]);
   
   // 如果正在构建，开始轮询
@@ -455,13 +562,15 @@ onUnmounted(() => {
 
 <style scoped>
 .popup-container {
-  width: 360px;
-  min-height: 400px;
+  width: 380px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   padding: 0;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  height: 550px; /* Fixed height */
 }
 
 .header {
@@ -470,7 +579,6 @@ onUnmounted(() => {
   align-items: center;
   padding: 16px 20px;
   background: rgba(0, 0, 0, 0.1);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .logo {
@@ -494,11 +602,46 @@ onUnmounted(() => {
   opacity: 0.8;
 }
 
-/* 状态区域 */
-.status-section,
-.stats-section {
+.tabs {
+  display: flex;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 12px 0;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s;
+}
+
+.tab-btn:hover {
+  color: white;
+}
+
+.tab-btn.active {
+  color: white;
+}
+
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: white;
+}
+
+.tab-content {
+  flex: 1;
   padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  overflow-y: auto;
 }
 
 h2 {
@@ -532,32 +675,53 @@ h2 {
   font-weight: 600;
 }
 
-.value.ready {
-  color: #4ade80;
-}
+.value.ready { color: #4ade80; }
+.value.building { color: #fbbf24; }
+.value.highlight { color: #fbbf24; }
+.value.status-on { color: #4ade80; }
+.value.status-off { color: rgba(255, 255, 255, 0.6); }
 
-.value.building {
-  color: #fbbf24;
-}
-
-.value.highlight {
-  color: #fbbf24;
-}
-
-.value.status-on {
-  color: #4ade80;
-  font-weight: 600;
-}
-
-.value.status-off {
-  color: rgba(255, 255, 255, 0.6);
-}
-
-/* 操作按钮 */
 .actions-section {
-  padding: 20px;
+  padding-top: 16px;
   display: flex;
   flex-direction: column;
+  gap: 10px;
+}
+
+.input-section {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.url-textarea {
+  flex: 1;
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-family: inherit;
+  font-size: 14px;
+  resize: none;
+  margin-bottom: 12px;
+  backdrop-filter: blur(10px);
+  min-height: 100px; /* 至少有100像素高 */
+  max-height: 400px; /* 最高不能超过400像素 */
+}
+
+.url-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.url-textarea:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.input-actions {
+  display: flex;
   gap: 10px;
 }
 
@@ -570,6 +734,9 @@ h2 {
   cursor: pointer;
   transition: all 0.2s;
   outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn:disabled {
@@ -577,55 +744,32 @@ h2 {
   cursor: not-allowed;
 }
 
-.btn-primary {
-  background: white;
-  color: #764ba2;
+.actions-section .btn {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+}
+.actions-section .btn:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
-.btn-primary:not(:disabled):hover {
-  background: #f3f4f6;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+.actions-section .btn.btn-info {
+  background: #3b82f6;
+}
+.actions-section .btn.btn-warning {
+  background: #f59e0b;
 }
 
-.btn-primary:active {
-  transform: translateY(0);
+.input-actions .btn-primary {
+  flex: 2;
+  background: rgba(255, 255, 255, 0.9);
+  color: #4c51bf;
 }
-
-.btn-secondary {
+.input-actions .btn-secondary {
+  flex: 1;
   background: rgba(255, 255, 255, 0.2);
   color: white;
 }
 
-.btn-secondary:not(:disabled):hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.btn-secondary:active {
-  transform: translateY(0);
-}
-
-.btn-warning {
-  background: #fbbf24;
-  color: #78350f;
-}
-
-.btn-warning:not(:disabled):hover {
-  background: #f59e0b;
-}
-
-.btn-info {
-  background: #3b82f6;
-  color: white;
-}
-
-.btn-info:not(:disabled):hover {
-  background: #2563eb;
-}
-
-/* 加载动画 */
 .loading-spinner {
   display: inline-block;
   width: 14px;
@@ -635,91 +779,16 @@ h2 {
   border-top-color: white;
   animation: spin 0.8s linear infinite;
   margin-right: 6px;
-  vertical-align: middle;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
-/* 进度条 */
-.progress-section {
-  padding: 16px 20px;
-  background: rgba(0, 0, 0, 0.1);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.progress-bar {
-  width: 100%;
-  height: 8px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 8px;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #4ade80, #22c55e);
-  border-radius: 4px;
-  transition: width 0.3s ease;
-  box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
-}
-
-.progress-text {
-  font-size: 12px;
-  text-align: center;
-  opacity: 0.9;
-  margin: 0;
-}
-
-/* 通知提示 */
-.notification {
-  position: fixed;
-  bottom: 60px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 10px 20px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  z-index: 1000;
-  animation: slideUp 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.notification.success {
-  background: #4ade80;
-  color: #14532d;
-}
-
-.notification.error {
-  background: #f87171;
-  color: #7f1d1d;
-}
-
-.notification.info {
-  background: #60a5fa;
-  color: #1e3a8a;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-/* 底部 */
 .footer {
   padding: 12px 20px;
   text-align: center;
   font-size: 12px;
   background: rgba(0, 0, 0, 0.1);
+  margin-top: auto; /* Push to bottom */
 }
 
 .footer a {
@@ -737,5 +806,80 @@ h2 {
 .separator {
   margin: 0 8px;
   opacity: 0.4;
+}
+
+/* 操作提示 */
+.notification {
+  position: absolute;
+  bottom: 60px;
+  left: 20px;
+  right: 20px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: white;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: opacity 0.3s, transform 0.3s;
+}
+.notification.success {
+  background: #28a745;
+}
+.notification.error {
+  background: #dc3545;
+}
+.notification.info {
+  background: #17a2b8;
+}
+
+/* Modal styles remain the same */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.modal-content {
+  background: #2d3748;
+  padding: 24px;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  color: white;
+}
+
+.modal-content h2 {
+  margin-top: 0;
+  color: #a0aec0;
+}
+
+.modal-content p {
+  font-size: 14px;
+  color: #a0aec0;
+  margin-bottom: 16px;
+}
+
+.modal-content .url-textarea {
+  height: 200px;
+  font-size: 14px;
+  background: rgba(0,0,0,0.2);
+  border-color: rgba(255,255,255,0.2);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
 }
 </style>

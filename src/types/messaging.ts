@@ -36,6 +36,12 @@ export interface ExtractAndShowResultsMessage {
   type: 'EXTRACT_AND_SHOW_RESULTS';
 }
 
+// Popup -> Background
+export interface CheckUrlsAndShowResultsMessage {
+  type: 'CHECK_URLS_AND_SHOW_RESULTS';
+  payload: { urls: string[] };
+}
+
 // Background -> Content
 export interface ShowSingleLinkResultMessage {
  type: 'SHOW_SINGLE_LINK_RESULT';
@@ -54,6 +60,32 @@ export interface ShowMultipleLinksResultMessage {
  };
 }
 
+// Background -> Content to show URL edit modal
+export interface ShowUrlEditModalMessage {
+type: 'SHOW_URL_EDIT_MODAL';
+payload: {
+  urls: string[];
+  source: string; // e.g., 'context-menu-single-link'
+};
+}
+
+// Content -> Background after editing urls
+export interface CheckEditedUrlsMessage {
+ type: 'CHECK_EDITED_URLS';
+ payload: {
+   urls: string[];
+   source: string;
+ };
+}
+
+// Content -> Background to open a new tab
+export interface OpenTabMessage {
+ type: 'OPEN_TAB';
+ payload: {
+   url: string;
+ };
+}
+
 // All message types
 export type Message =
   | QueryUrlsMessage
@@ -62,7 +94,17 @@ export type Message =
   | ReloadSettingsMessage
   | ExtractAndShowResultsMessage
   | ShowSingleLinkResultMessage
-  | ShowMultipleLinksResultMessage;
+  | ShowMultipleLinksResultMessage
+  | CheckUrlsAndShowResultsMessage
+  | ShowUrlEditModalMessage
+  | CheckEditedUrlsMessage
+  | OpenTabMessage
+  | SettingsUpdatedMessage;
+ 
+// Background -> Content to notify of settings changes
+export interface SettingsUpdatedMessage {
+  type: 'SETTINGS_UPDATED';
+}
 
 // Bookmark Cache Interface
 export interface BookmarkCache {

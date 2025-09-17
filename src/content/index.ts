@@ -10,7 +10,10 @@ class ContentScript {
   private queryManager: QueryManager;
   private domMarker: DomMarker;
   private isAutoMarkingEnabled: boolean = false; // 默认关闭自动标记
-
+  private batchOpenSize: number = 5;
+  private modalCloseTimerId: number | null = null;
+  private modalDuration: number = 0;
+ 
   constructor() {
     console.log('[ContentScript] 初始化开始');
     
@@ -211,7 +214,16 @@ class ContentScript {
           case 'SHOW_MULTIPLE_LINKS_RESULT':
             this.showResultModal(message.payload.results.results, message.payload.modalDuration);
             return { success: true };
+
+          case 'SHOW_URL_EDIT_MODAL':
+            this.showUrlEditModal(message.payload.urls, message.payload.source);
+            return { success: true };
             
+          case 'SETTINGS_UPDATED':
+            console.log('[ContentScript] 收到设置更新通知，正在重新加载...');
+            await this.loadSettings();
+            return { success: true };
+
           default:
             return { error: '未知消息类型' };
         }
@@ -234,6 +246,7 @@ class ContentScript {
       const result = await chrome.storage.local.get(['settings']);
       if (result.settings) {
         this.isAutoMarkingEnabled = result.settings.enableAutoMarking ?? false;
+        this.batchOpenSize = result.settings.batchOpenSize ?? 5;
       }
     } catch (error) {
       console.error('[ContentScript] 加载设置失败:', error);
@@ -310,7 +323,7 @@ class ContentScript {
     links.forEach(link => {
       const href = (link as HTMLAnchorElement).href;
       if (this.isValidUrl(href)) {
-        urls.add(this.normalizeUrl(href));
+        urls.add(href);
       }
     });
     
@@ -324,7 +337,7 @@ class ContentScript {
       if (matches) {
         matches.forEach(url => {
           if (this.isValidUrl(url)) {
-            urls.add(this.normalizeUrl(url));
+            urls.add(url);
           }
         });
       }
@@ -397,6 +410,7 @@ class ContentScript {
   * 显示结果弹窗
   */
   private showResultModal(results: any[], durationInSeconds: number) {
+    this.modalDuration = durationInSeconds;
     // 移除已存在的弹窗
     const existingModal = document.getElementById('bookmark-sentry-modal');
     if (existingModal) {
@@ -437,11 +451,26 @@ class ContentScript {
     if (isMultiple) {
       // 多链接结果显示
       const total = results.length;
-      const bookmarked = results.filter(r => r.isBookmarked).length;
-      const title = `<h3 style="margin-top:0; margin-bottom: 15px; font-size: 16px; color: #111;">🔍 检查结果 (${bookmarked}/${total})</h3>`;
+      const bookmarkedCount = results.filter(r => r.isBookmarked).length;
+      const unbookmarkedCount = total - bookmarkedCount;
+      const title = `<h3 style="margin-top:0; margin-bottom: 15px; font-size: 16px; color: #111;">🔍 检查结果 (${bookmarkedCount}/${total})</h3>`;
       
       content = title;
-      content += `<div style="max-height: 300px; overflow-y: auto; margin-top: 10px;">`;
+      
+      // 添加筛选按钮区域
+      content += `
+        <div id="modal-filter-bar" style="margin-bottom: 15px;">
+            <button class="filter-btn active" data-filter="all">全部 (${total})</button>
+            <button class="filter-btn" data-filter="bookmarked">已收藏 (${bookmarkedCount})</button>
+            <button class="filter-btn" data-filter="unbookmarked">未收藏 (${unbookmarkedCount})</button>
+        </div>
+      `;
+
+      //  添加一键打开按钮区域
+      content += `<div id="modal-actions-bar" style="margin-bottom: 15px;"></div>`;
+      content += `<div id="modal-batch-controls"></div>`;
+
+      content += `<div id="modal-results-list" style="max-height: 260px; overflow-y: auto; margin-top: 10px;">`;
       
       results.forEach((result, index) => {
         const statusIcon = result.isBookmarked ? '✅' : '❌';
@@ -449,7 +478,7 @@ class ContentScript {
         const borderColor = result.isBookmarked ? '#28a745' : '#dc3545';
         
         content += `
-          <div style="
+          <div class="sentry-result-item" data-is-bookmarked="${result.isBookmarked}" style="
             border: 1px solid ${borderColor};
             border-radius: 6px;
             padding: 12px;
@@ -494,17 +523,36 @@ class ContentScript {
     modal.innerHTML = closeButton + content;
     document.body.appendChild(modal);
 
+    if (isMultiple) {
+      this.renderModalActionButtons(results);
+      this.setupModalFilterLogic();
+    }
+ 
     document.getElementById('bookmark-sentry-modal-close')?.addEventListener('click', () => {
       modal.remove();
     });
 
     // 设置自动关闭
-    if (durationInSeconds > 0) {
-      setTimeout(() => {
-        if (document.getElementById('bookmark-sentry-modal')) {
+    this.setModalAutoClose();
+  }
+
+  private cancelModalAutoClose() {
+    if (this.modalCloseTimerId) {
+      clearTimeout(this.modalCloseTimerId);
+      this.modalCloseTimerId = null;
+      console.log('[ContentScript] 弹窗自动关闭已取消');
+    }
+  }
+
+  private setModalAutoClose() {
+    this.cancelModalAutoClose(); // Always clear previous timer
+    if (this.modalDuration > 0) {
+      const modal = document.getElementById('bookmark-sentry-modal');
+      if (modal) {
+        this.modalCloseTimerId = setTimeout(() => {
           modal.remove();
-        }
-      }, durationInSeconds * 1000);
+        }, this.modalDuration * 1000) as unknown as number;
+      }
     }
   }
   
@@ -515,8 +563,291 @@ class ContentScript {
     if (!url || url.length <= maxLength) return url || '';
     return url.substring(0, maxLength - 3) + '...';
   }
+
+  // Custom modal for batch open choice, adapted for content script
+  private showBatchOpenChoiceModal(question: string): Promise<'manual' | 'auto' | 'cancel'> {
+      return new Promise((resolve) => {
+          const existingModal = document.getElementById('bookmark-sentry-choice-modal-cs');
+          if (existingModal) existingModal.remove();
+
+          const modalOverlay = document.createElement('div');
+          modalOverlay.id = 'bookmark-sentry-choice-modal-cs';
+          modalOverlay.style.cssText = `
+              position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+              background: rgba(0, 0, 0, 0.6); z-index: 100000000;
+              display: flex; justify-content: center; align-items: center;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          `;
+
+          const modalContent = document.createElement('div');
+          modalContent.style.cssText = `
+              background: white; padding: 24px; border-radius: 8px;
+              box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+              text-align: center; color: #333;
+              width: 90%; max-width: 400px;
+          `;
+          
+          modalContent.innerHTML = `
+              <h3 style="margin-top: 0; font-size: 16px; color: #111;">${question}</h3>
+              <div style="display: flex; justify-content: center; gap: 12px; margin-top: 24px;">
+                  <button id="cs-choice-manual" style="padding: 10px 16px; border: none; border-radius: 6px; background: #2563eb; color: white; cursor: pointer; font-size: 14px;">手动分批</button>
+                  <button id="cs-choice-auto" style="padding: 10px 16px; border: none; border-radius: 6px; background: #6b7280; color: white; cursor: pointer; font-size: 14px;">自动分批</button>
+                  <button id="cs-choice-cancel" style="padding: 10px 16px; border: none; border-radius: 6px; background: #e5e7eb; color: #333; cursor: pointer; font-size: 14px;">关闭</button>
+              </div>
+          `;
+          
+          modalOverlay.appendChild(modalContent);
+          document.body.appendChild(modalOverlay);
+
+          const cleanup = () => modalOverlay.remove();
+
+          document.getElementById('cs-choice-manual')?.addEventListener('click', () => { cleanup(); resolve('manual'); });
+          document.getElementById('cs-choice-auto')?.addEventListener('click', () => { cleanup(); resolve('auto'); });
+          document.getElementById('cs-choice-cancel')?.addEventListener('click', () => { cleanup(); resolve('cancel'); });
+      });
+  }
+  
+  private setupModalFilterLogic() {
+    const filterBar = document.getElementById('modal-filter-bar');
+    if (!filterBar) return;
+
+    const styleId = 'bookmark-sentry-modal-filter-styles';
+    if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+            #modal-filter-bar .filter-btn { padding: 5px 10px; border: 1px solid #ccc; border-radius: 4px; background-color: #f8f9fa; cursor: pointer; font-size: 12px; margin-right: 8px; }
+            #modal-filter-bar .filter-btn.active { background-color: #007bff; color: white; border-color: #007bff; }
+        `;
+        document.head.appendChild(style);
+    }
+
+    filterBar.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        if (!target.matches('.filter-btn')) return;
+
+        filterBar.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+        target.classList.add('active');
+
+        const filter = target.dataset.filter;
+        const items = document.querySelectorAll('#modal-results-list .sentry-result-item');
+
+        items.forEach(item => {
+            const el = item as HTMLElement;
+            const isBookmarked = el.dataset.isBookmarked === 'true';
+            
+            let shouldShow = false;
+            if (filter === 'all') {
+                shouldShow = true;
+            } else if (filter === 'bookmarked') {
+                shouldShow = isBookmarked;
+            } else if (filter === 'unbookmarked') {
+                shouldShow = !isBookmarked;
+            }
+            el.style.display = shouldShow ? 'block' : 'none';
+        });
+    });
+  }
+
+  private renderModalActionButtons(results: any[]) {
+    const container = document.getElementById('modal-actions-bar');
+    if (!container) return;
+
+    const bookmarkedItems = results.filter(item => item.isBookmarked);
+    const unbookmarkedItems = results.filter(item => !item.isBookmarked);
+    const performanceWarningThreshold = this.batchOpenSize * 3;
+
+    const urlsByType = {
+      bookmarked: bookmarkedItems.map(i => i.original),
+      unbookmarked: unbookmarkedItems.map(i => i.original),
+      all: results.map(i => i.original)
+    };
+
+    const actions = [
+      { id: 'modal-open-unbookmarked', text: '打开未收藏', urls: urlsByType.unbookmarked },
+      { id: 'modal-open-bookmarked', text: '打开已收藏', urls: urlsByType.bookmarked },
+      { id: 'modal-open-all', text: '打开所有', urls: urlsByType.all },
+    ];
+
+    actions.forEach(action => {
+      if (action.urls.length > 0) {
+        const button = document.createElement('button');
+        button.id = action.id;
+        button.textContent = `${action.text} (${action.urls.length})`;
+        button.style.cssText = `padding: 5px 10px; border: 1px solid #ccc; border-radius: 4px; background-color: #f8f9fa; cursor: pointer; font-size: 12px; margin-right: 8px;`;
+        button.addEventListener('click', async () => {
+          if (action.urls.length > performanceWarningThreshold && !confirm(`您将打开 ${action.urls.length} 个链接，这可能会影响浏览器性能。要继续吗？`)) {
+            return;
+          }
+          
+          const opener = new BatchLinkOpener(action.urls, this.batchOpenSize, () => this.cancelModalAutoClose());
+          const batchControlsContainer = document.getElementById('modal-batch-controls') as HTMLDivElement;
+          
+          const triggerThreshold = Math.max(this.batchOpenSize, 10);
+          if (action.urls.length > triggerThreshold) {
+            this.cancelModalAutoClose(); // 在弹出选择框前，暂停计时器
+            const choice = await this.showBatchOpenChoiceModal('链接数量较多，请选择打开方式：');
+            
+            if (choice === 'manual') {
+              opener.startManual(batchControlsContainer);
+            } else if (choice === 'auto') {
+              opener.startAuto(batchControlsContainer);
+            } else if (choice === 'cancel') {
+              // 用户选择关闭，重新开始计时
+              this.setModalAutoClose();
+            }
+          } else {
+              // 链接数不多时，自动分批打开，避免一次性打开过多标签页
+              opener.startAuto(batchControlsContainer);
+          }
+        });
+        container.appendChild(button);
+      }
+    });
+  }
+
+  private showUrlEditModal(urls: string[], source: string) {
+    const existingModal = document.getElementById('bookmark-sentry-edit-modal');
+    if (existingModal) existingModal.remove();
+
+    const modalOverlay = document.createElement('div');
+    modalOverlay.id = 'bookmark-sentry-edit-modal';
+    modalOverlay.style.cssText = `
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.6); z-index: 99999998;
+      display: flex; justify-content: center; align-items: center;
+    `;
+
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+      background: #fff; padding: 24px; border-radius: 8px; width: 90%;
+      max-width: 500px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+      color: #333; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
+
+    const urlCount = urls.length;
+    modalContent.innerHTML = `
+      <h2 style="margin-top: 0; color: #111;">编辑URL (共 ${urlCount} 个)</h2>
+      <p style="font-size: 14px; color: #666; margin-bottom: 16px;">每行一个URL。您可以修改或删除列表中的URL。</p>
+      <textarea id="bookmark-sentry-edit-textarea" style="width: 100%; height: 200px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; resize: vertical;"></textarea>
+      <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px;">
+        <button id="bookmark-sentry-edit-confirm" style="padding: 10px 16px; border: none; border-radius: 6px; background: #2563eb; color: white; cursor: pointer;">查询</button>
+        <button id="bookmark-sentry-edit-cancel" style="padding: 10px 16px; border: none; border-radius: 6px; background: #e5e7eb; color: #333; cursor: pointer;">取消</button>
+      </div>
+    `;
+
+    modalOverlay.appendChild(modalContent);
+    document.body.appendChild(modalOverlay);
+
+    const textarea = document.getElementById('bookmark-sentry-edit-textarea') as HTMLTextAreaElement;
+    textarea.value = urls.join('\n');
+
+    document.getElementById('bookmark-sentry-edit-confirm')?.addEventListener('click', () => {
+      const editedUrls = textarea.value.split('\n').map(url => url.trim()).filter(Boolean);
+      chrome.runtime.sendMessage({
+        type: 'CHECK_EDITED_URLS',
+        payload: { urls: editedUrls, source }
+      });
+      modalOverlay.remove();
+    });
+
+    document.getElementById('bookmark-sentry-edit-cancel')?.addEventListener('click', () => {
+      modalOverlay.remove();
+    });
+  }
 }
 
+// 批量打开链接的管理器 - 与 results/main.ts 中的类似
+class BatchLinkOpener {
+  private urls: string[];
+  private batchSize: number;
+  private onManualBatchOpen: () => void;
+  private currentIndex: number = 0;
+  private controlsContainer: HTMLDivElement | null = null;
+  private intervalId: number | null = null;
+
+  constructor(urls: string[], batchSize: number, onManualBatchOpen: () => void) {
+    this.urls = urls;
+    this.batchSize = batchSize;
+    this.onManualBatchOpen = onManualBatchOpen;
+  }
+
+  openNextBatch(container?: HTMLElement) {
+    if (this.currentIndex >= this.urls.length) {
+      this.updateControlsMessage('所有链接已打开完毕。');
+      if (this.intervalId) clearInterval(this.intervalId);
+      return;
+    }
+    const batch = this.urls.slice(this.currentIndex, this.currentIndex + this.batchSize);
+    batch.forEach(url => chrome.runtime.sendMessage({ type: 'OPEN_TAB', payload: { url } })); // 通过background打开
+    this.currentIndex += batch.length;
+    if (container && !this.controlsContainer) this.renderControls(container, 'manual');
+    this.updateControls();
+  }
+
+  startManual(container: HTMLElement) {
+    this.renderControls(container, 'manual');
+  }
+
+  startAuto(container: HTMLElement) {
+    this.renderControls(container, 'auto');
+    this.openNextBatch(); // Open first batch immediately
+    this.intervalId = setInterval(() => this.openNextBatch(), 2000) as unknown as number;
+  }
+
+  stop() {
+    if (this.intervalId) clearInterval(this.intervalId);
+    this.intervalId = null;
+    if (this.controlsContainer) this.controlsContainer.style.display = 'none';
+  }
+
+  renderControls(container: HTMLElement, mode: 'manual' | 'auto') {
+    container.innerHTML = `
+      <div style="margin-top: 10px; padding: 8px; background-color: #f1f1f1; border-radius: 4px;">
+        <p id="modal-batch-status" style="font-size: 12px; margin: 0 0 8px 0;"></p>
+        ${mode === 'manual' ? '<button id="modal-next-batch-btn" style="padding: 4px 8px; font-size: 12px;">打开下一批</button>' : ''}
+        <button id="modal-cancel-batch-btn" style="padding: 4px 8px; font-size: 12px;">停止</button>
+      </div>
+    `;
+    this.controlsContainer = container.firstElementChild as HTMLDivElement;
+    this.updateControls();
+    
+    if (mode === 'manual') {
+      const nextButton = document.getElementById('modal-next-batch-btn');
+      if (nextButton) {
+        // 此监听器仅处理第一次点击，用于取消计时器，然后会自动移除。
+        nextButton.addEventListener('click', this.onManualBatchOpen, { once: true });
+        
+        // 此监听器处理所有点击（包括第一次），用于打开链接。
+        nextButton.addEventListener('click', () => this.openNextBatch());
+      }
+    }
+    document.getElementById('modal-cancel-batch-btn')?.addEventListener('click', () => this.stop());
+  }
+
+  updateControls() {
+    const statusEl = document.getElementById('modal-batch-status');
+    if (statusEl) {
+      statusEl.textContent = `已打开 ${this.currentIndex} / ${this.urls.length} 个链接。`;
+    }
+    const nextBtn = document.getElementById('modal-next-batch-btn') as HTMLButtonElement;
+    if(nextBtn) {
+        nextBtn.disabled = this.currentIndex >= this.urls.length;
+    }
+  }
+  
+  updateControlsMessage(message: string) {
+    const statusEl = document.getElementById('modal-batch-status');
+    if (statusEl) {
+        statusEl.textContent = message;
+    }
+     const nextBtn = document.getElementById('modal-next-batch-btn') as HTMLButtonElement;
+    if(nextBtn) {
+        nextBtn.style.display = 'none';
+    }
+  }
+}
+ 
 // 创建并启动Content Script
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {

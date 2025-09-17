@@ -5,3 +5,4 @@
 node_modules
 dist
 .vite
+SERVICE_WORKER_FIX.md

@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Worker 测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .status-box {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .status-item:last-child {
+            border-bottom: none;
+        }
+        .status-label {
+            font-weight: bold;
+            color: #666;
+        }
+        .status-value {
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .active {
+            background: #4CAF50;
+            color: white;
+        }
+        .inactive {
+            background: #f44336;
+            color: white;
+        }
+        .warning {
+            background: #ff9800;
+            color: white;
+        }
+        .log-box {
+            background: #2b2b2b;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #4CAF50;
+            padding-left: 10px;
+        }
+        .log-entry.error {
+            border-left-color: #f44336;
+            color: #ff6b6b;
+        }
+        .log-entry.warning {
+            border-left-color: #ff9800;
+            color: #ffd93d;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .test-section {
+            margin-top: 20px;
+        }
+        .instructions {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .instructions h3 {
+            color: #1976D2;
+            margin-top: 0;
+        }
+        .instructions ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🛡️ 书签哨兵 Service Worker 测试页面</h1>
+
+    <div class="instructions">
+        <h3>📋 测试说明</h3>
+        <ol>
+            <li>首先，确保已经安装并启用了书签哨兵扩展</li>
+            <li>重新加载扩展（在扩展管理页面点击刷新按钮）</li>
+            <li>打开此测试页面，观察Service Worker状态</li>
+            <li>等待30秒以上，看Service Worker是否仍然保持活跃</li>
+            <li>点击测试按钮验证功能是否正常</li>
+        </ol>
+    </div>
+
+    <div class="status-box">
+        <h2>📊 Service Worker 状态监控</h2>
+        <div class="status-item">
+            <span class="status-label">扩展ID:</span>
+            <span class="status-value" id="extensionId">检测中...</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">Service Worker状态:</span>
+            <span class="status-value" id="swStatus">检测中...</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">最后活跃时间:</span>
+            <span class="status-value" id="lastActive">--:--:--</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">持续运行时间:</span>
+            <span class="status-value" id="uptime">0秒</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">Keep-Alive状态:</span>
+            <span class="status-value" id="keepAliveStatus">检测中...</span>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 功能测试</h2>
+        <button onclick="testMessage()">发送测试消息</button>
+        <button onclick="testCacheStatus()">获取缓存状态</button>
+        <button onclick="testBookmarkQuery()">测试书签查询</button>
+        <button onclick="clearLog()">清空日志</button>
+    </div>
+
+    <div class="log-box" id="logBox">
+        <div class="log-entry">等待测试开始...</div>
+    </div>
+
+    <script>
+        // 书签哨兵扩展ID（需要根据实际安装后的ID更新）
+        const EXTENSION_ID = 'YOUR_EXTENSION_ID_HERE';
+        let startTime = Date.now();
+        let swCheckInterval;
+        let lastKeepAliveTime = 0;
+
+        // 日志函数
+        function log(message, type = 'info') {
+            const logBox = document.getElementById('logBox');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const timestamp = new Date().toLocaleTimeString('zh-CN');
+            entry.textContent = `[${timestamp}] ${message}`;
+            logBox.appendChild(entry);
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        // 清空日志
+        function clearLog() {
+            document.getElementById('logBox').innerHTML = '<div class="log-entry">日志已清空</div>';
+        }
+
+        // 检测扩展是否安装
+        async function detectExtension() {
+            try {
+                // 尝试通过查找扩展管理页面来检测
+                const extensions = await chrome.management.getAll();
+                const bookmarkSentry = extensions.find(ext => 
+                    ext.name.includes('书签哨兵') || ext.name.includes('Bookmark Sentry')
+                );
+                
+                if (bookmarkSentry) {
+                    document.getElementById('extensionId').textContent = bookmarkSentry.id;
+                    document.getElementById('extensionId').className = 'status-value active';
+                    log(`检测到书签哨兵扩展: ${bookmarkSentry.id}`);
+                    return bookmarkSentry.id;
+                }
+            } catch (e) {
+                // 如果没有management权限，尝试直接发送消息
+                log('使用备用方法检测扩展...', 'warning');
+            }
+            
+            document.getElementById('extensionId').textContent = '未检测到';
+            document.getElementById('extensionId').className = 'status-value inactive';
+            return null;
+        }
+
+        // 检查Service Worker状态
+        async function checkServiceWorkerStatus() {
+            try {
+                // 检查localStorage中的keep-alive时间戳
+                const response = await chrome.runtime.sendMessage(EXTENSION_ID || '', {
+                    type: 'GET_CACHE_STATUS'
+                });
+                
+                if (response) {
+                    document.getElementById('swStatus').textContent = '活跃';
+                    document.getElementById('swStatus').className = 'status-value active';
+                    document.getElementById('lastActive').textContent = new Date().toLocaleTimeString('zh-CN');
+                    
+                    // 更新运行时间
+                    const uptime = Math.floor((Date.now() - startTime) / 1000);
+                    document.getElementById('uptime').textContent = `${uptime}秒`;
+                    
+                    log('Service Worker响应正常');
+                    return true;
+                }
+            } catch (error) {
+                document.getElementById('swStatus').textContent = '无响应';
+                document.getElementById('swStatus').className = 'status-value inactive';
+                log(`Service Worker无响应: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // 检查Keep-Alive机制
+        async function checkKeepAlive() {
+            try {
+                // 从Chrome storage读取keep-alive时间戳
+                chrome.storage.local.get(['_keepAlive'], (result) => {
+                    if (result._keepAlive) {
+                        const timeDiff = Date.now() - result._keepAlive;
+                        if (timeDiff < 35000) { // 35秒内有更新
+                            document.getElementById('keepAliveStatus').textContent = '正常工作';
+                            document.getElementById('keepAliveStatus').className = 'status-value active';
+                            lastKeepAliveTime = result._keepAlive;
+                        } else {
+                            document.getElementById('keepAliveStatus').textContent = `${Math.floor(timeDiff/1000)}秒未更新`;
+                            document.getElementById('keepAliveStatus').className = 'status-value warning';
+                        }
+                    }
+                });
+            } catch (error) {
+                log(`Keep-Alive检查失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 测试消息发送
+        async function testMessage() {
+            log('发送测试消息...');
+            try {
+                const response = await chrome.runtime.sendMessage(EXTENSION_ID || '', {
+                    type: 'GET_CACHE_STATUS'
+                });
+                if (response) {
+                    log(`收到响应: ${JSON.stringify(response)}`);
+                } else {
+                    log('未收到响应', 'error');
+                }
+            } catch (error) {
+                log(`发送消息失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 测试缓存状态
+        async function testCacheStatus() {
+            log('获取缓存状态...');
+            try {
+                const response = await chrome.runtime.sendMessage(EXTENSION_ID || '', {
+                    type: 'GET_CACHE_STATUS'
+                });
+                if (response) {
+                    log(`缓存状态: 总数=${response.totalBookmarks}, 已缓存=${response.cachedUrls}`);
+                }
+            } catch (error) {
+                log(`获取缓存状态失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 测试书签查询
+        async function testBookmarkQuery() {
+            log('测试书签查询...');
+            const testUrls = ['https://www.google.com', 'https://www.github.com'];
+            try {
+                const response = await chrome.runtime.sendMessage(EXTENSION_ID || '', {
+                    type: 'QUERY_URLS',
+                    payload: { urls: testUrls }
+                });
+                if (response && response.bookmarkedUrls) {
+                    log(`查询结果: ${JSON.stringify(response.bookmarkedUrls)}`);
+                }
+            } catch (error) {
+                log(`书签查询失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 初始化
+        async function init() {
+            log('初始化测试页面...');
+            
+            // 检测扩展
+            const extId = await detectExtension();
+            
+            // 开始定期检查
+            swCheckInterval = setInterval(async () => {
+                await checkServiceWorkerStatus();
+                await checkKeepAlive();
+            }, 5000); // 每5秒检查一次
+            
+            // 立即执行一次检查
+            await checkServiceWorkerStatus();
+            await checkKeepAlive();
+            
+            log('测试页面已准备就绪');
+            log('💡 提示: 等待30秒以上观察Service Worker是否保持活跃', 'warning');
+        }
+
+        // 页面加载完成后初始化
+        window.addEventListener('load', init);
+        
+        // 页面卸载时清理
+        window.addEventListener('beforeunload', () => {
+            if (swCheckInterval) {
+                clearInterval(swCheckInterval);
+            }
+        });
+    </script>
+</body>
+</html>

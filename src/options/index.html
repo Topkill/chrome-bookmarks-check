@@ -14,138 +14,156 @@
       
       <main>
         <section>
-          <h2>基本设置</h2>
+          <h2>通用行为</h2>
           <div class="setting-item">
             <label>
               <input type="checkbox" id="enable-auto-marking">
-              <span>自动标记页面链接（可能影响性能）</span>
+              <span>自动标记页面上的已收藏链接（可能影响性能）</span>
             </label>
-            <small style="display: block; margin-left: 25px; color: #999;">
-              开启后，访问网页时自动扫描并标记已收藏的链接
-            </small>
+            <small>开启后，访问网页时会自动扫描并为已收藏的链接添加⭐图标。可能会轻微影响大型网页的加载性能。</small>
           </div>
           <div class="setting-item">
             <label>
               <input type="checkbox" id="show-notifications" checked>
-              <span>显示通知提醒</span>
+              <span>启用扩展的全部通知功能</span>
+            </label>
+            <small>关闭后，将不会收到任何来自扩展的系统通知或页面内弹窗。</small>
+          </div>
+        </section>
+
+        <section>
+          <h2>结果与通知</h2>
+          <p class="section-description">当您通过右键菜单或弹出窗口检查链接后，选择希望如何看到检查结果。</p>
+          
+          <div class="setting-item-group">
+            <h3>当只检查 <u>一个</u> 链接时:</h3>
+            <small>场景：在网页的某个链接上点击右键，选择“检查此链接是否已收藏”。</small>
+            <div class="radio-group">
+              <label><input type="radio" name="single-link-action" value="page" checked> <strong>打开新页面</strong> - 显示最详细的结果</label>
+              <label><input type="radio" name="single-link-action" value="modal"> <strong>页面内弹窗</strong> - 在当前页面右上角弹出临时窗口</label>
+              <label><input type="radio" name="single-link-action" value="notification"> <strong>系统通知</strong> - 使用操作系统的通知系统提示</label>
+            </div>
+          </div>
+
+          <div class="setting-item-group">
+            <h3>当检查 <u>多个</u> 链接时:</h3>
+            <small>场景：右键菜单点击从选中文本中提取链接，在扩展弹出窗口或右键菜单点击提取当前页面的链接。</small>
+            <div class="radio-group">
+              <label><input type="radio" name="multi-link-action" value="page" checked> <strong>打开新页面</strong> - 显示最详细的结果</label>
+              <label><input type="radio" name="multi-link-action" value="modal"> <strong>页面内弹窗</strong> - 在当前页面右上角弹出临时窗口</label>
+              <label><input type="radio" name="multi-link-action" value="notification"> <strong>系统通知</strong> - 使用操作系统的通知系统提示</label>
+              <div id="notification-detail-options" class="sub-options">
+                <small>点击系统通知的“查看详情”按钮后:</small>
+                <div class="radio-group" style="gap: 8px; margin-top: 8px;">
+                  <label><input type="radio" name="notification-detail-action" value="page" checked> 打开新页面</label>
+                  <label><input type="radio" name="notification-detail-action" value="modal"> 显示页面内弹窗</label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h2>链接提取与编辑</h2>
+          <p class="section-description">在正式检查前，您可以选择先对提取到的URL列表进行手动编辑。</p>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="edit-before-check-single-link">
+              <span>检查此链接是否已收藏前 (通过右键菜单)</span>
             </label>
           </div>
           <div class="setting-item">
-           <label>检查单个链接时的操作:</label>
-           <div class="radio-group" style="margin-left: 10px;">
-             <label><input type="radio" name="single-link-action" value="page" checked> 打开结果页面</label>
-             <label><input type="radio" name="single-link-action" value="notification"> 显示系统通知</label>
-             <label><input type="radio" name="single-link-action" value="modal"> 显示页面内弹窗</label>
-           </div>
-           <small style="display: block; margin-left: 25px; color: #999;">
-             选择右键点击单个链接检查收藏状态时的反馈方式。
-           </small>
-         </div>
-         <div class="setting-item">
-           <label>检查多个链接时的操作:</label>
-           <div class="radio-group" style="margin-left: 10px;">
-             <label><input type="radio" name="multi-link-action" value="page" checked> 打开结果页面</label>
-             <label><input type="radio" name="multi-link-action" value="notification"> 显示系统通知</label>
-             <label><input type="radio" name="multi-link-action" value="modal"> 显示页面内弹窗</label>
-           </div>
-           <small style="display: block; margin-left: 25px; color: #999;">
-             选择批量检查链接（右键菜单提取URL、主界面提取URL）时的反馈方式。
-           </small>
-         </div>
+            <label>
+              <input type="checkbox" id="edit-before-check-multi-link">
+              <span>从选中文本提取链接后 (通过右键菜单)</span>
+            </label>
+          </div>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="edit-before-check-popup-page">
+              <span>从当前页面提取所有链接后 (通过右键菜单或扩展弹窗)</span>
+            </label>
+          </div>
+          <div class="setting-item">
+            <label>
+              <input type="checkbox" id="edit-before-check-popup-text">
+              <span>从粘贴的文本中提取链接后 (通过扩展弹窗)</span>
+            </label>
+          </div>
         </section>
         
         <section>
-          <h2>URL匹配设置</h2>
-          <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
-            选择在比较URL时忽略哪些差异（规范化处理）
-          </p>
+          <h2>URL 匹配规则</h2>
+          <p class="section-description">设置URL的“规范化”规则： 比较URL时忽略哪些差异。勾选的选项越多，匹配越宽松。</p>
           <div class="setting-item">
             <label>
               <input type="checkbox" id="ignore-protocol">
               <span>忽略协议差异 (http/https)</span>
             </label>
-            <small style="display: block; margin-left: 25px; color: #999;">
-              例如：http://example.com 与 https://example.com 视为相同
-            </small>
+            <small>例如：http://example.com 与 https://example.com 视为相同</small>
           </div>
           <div class="setting-item">
             <label>
               <input type="checkbox" id="ignore-trailing-slash">
               <span>忽略末尾斜杠</span>
             </label>
-            <small style="display: block; margin-left: 25px; color: #999;">
-              例如：example.com/path 与 example.com/path/ 视为相同
-            </small>
+            <small>例如：example.com/path 与 example.com/path/ 视为相同</small>
           </div>
           <div class="setting-item">
             <label>
               <input type="checkbox" id="ignore-case">
               <span>忽略大小写差异（仅域名部分）</span>
             </label>
-            <small style="display: block; margin-left: 25px; color: #999;">
-              例如：EXAMPLE.COM 与 example.com 视为相同
-            </small>
+            <small>例如：EXAMPLE.COM 与 example.com 视为相同</small>
           </div>
           <div class="setting-item">
             <label>
               <input type="checkbox" id="ignore-www">
               <span>忽略www前缀</span>
             </label>
-            <small style="display: block; margin-left: 25px; color: #999;">
-              例如：www.example.com 与 example.com 视为相同
-            </small>
+            <small>例如：www.example.com 与 example.com 视为相同</small>
           </div>
           <div class="setting-item">
             <label>
               <input type="checkbox" id="ignore-hash">
               <span>忽略URL片段（#后的内容）</span>
             </label>
-            <small style="display: block; margin-left: 25px; color: #999;">
-              例如：example.com#section 与 example.com 视为相同
-            </small>
+            <small>例如：example.com#section 与 example.com 视为相同</small>
           </div>
         </section>
         
         <section>
-          <h2>高级设置</h2>
+          <h2>高级选项</h2>
+          <p class="section-description">调整插件的性能和缓存行为，通常无需修改。</p>
           <div class="setting-item">
-            <label>
-              批量查询大小：
-              <input type="number" id="batch-size" value="50" min="10" max="200">
-            </label>
+            <label for="batch-size">批量查询大小:</label>
+            <input type="number" id="batch-size" value="50" min="10" max="200">
+            <small>自动标记时，每次向后台查询的链接数量。减小此值可降低瞬时性能开销，但会增加总处理时间。</small>
           </div>
           <div class="setting-item">
-            <label>
-              缓存更新间隔（天）：
-              <input type="number" id="cache-days" value="7" min="1" max="30">
-            </label>
+            <label for="cache-days">缓存有效期 (天):</label>
+            <input type="number" id="cache-days" value="7" min="1" max="30">
+            <small>本地书签缓存的有效期限。超过此期限，缓存将在下次启动时自动重建。</small>
+          </div>
+          
+          <h3>通知与弹窗持续时间</h3>
+          <small class="group-description">设置为 0 表示永久显示，直到手动关闭。</small>
+          <div class="setting-item">
+            <label for="notification-duration">系统通知持续时间 (秒):</label>
+            <input type="number" id="notification-duration" value="15" min="0" max="300">
           </div>
           <div class="setting-item">
-            <label>
-              通知存在时长（秒）：
-              <input type="number" id="notification-duration" value="15" min="0" max="300">
-            </label>
-            <small style="display: block; margin-left: 25px; color: #999;">
-              设置系统通知的自动关闭时间，0表示永久存在直到手动关闭
-            </small>
+            <label for="single-modal-duration">单个链接页面内弹窗持续时间 (秒):</label>
+            <input type="number" id="single-modal-duration" value="5" min="0" max="300">
           </div>
           <div class="setting-item">
-            <label>
-              单链接弹窗存在时长（秒）：
-              <input type="number" id="single-modal-duration" value="5" min="0" max="300">
-            </label>
-            <small style="display: block; margin-left: 25px; color: #999;">
-              设置单链接弹窗的自动关闭时间，0表示永久存在直到手动关闭
-            </small>
+            <label for="multi-modal-duration">多个链接页面内弹窗持续时间 (秒):</label>
+            <input type="number" id="multi-modal-duration" value="15" min="0" max="300">
           </div>
           <div class="setting-item">
-            <label>
-              多链接弹窗存在时长（秒）：
-              <input type="number" id="multi-modal-duration" value="0" min="0" max="300">
-            </label>
-            <small style="display: block; margin-left: 25px; color: #999;">
-              设置多链接弹窗的自动关闭时间，0表示永久存在直到手动关闭
-            </small>
+              <label for="batch-open-size">每批次打开链接的个数:</label>
+              <input type="number" id="batch-open-size" value="5" min="1" max="50">
+              <small>使用“一键打开”功能时，每次批量打开的标签页数量。设置较小的值可以防止浏览器因一次性打开过多标签页而卡顿。</small>
           </div>
         </section>
         
@@ -182,7 +200,8 @@
       padding: 30px;
       border-radius: 10px;
       margin-bottom: 20px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      border: 1px solid #e5e7eb;
     }
     
     header h1 {
@@ -194,78 +213,115 @@
       background: white;
       padding: 30px;
       border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      border: 1px solid #e5e7eb;
     }
     
     section {
-      margin-bottom: 30px;
+      margin-bottom: 40px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    section:last-of-type {
+        border-bottom: none;
+        margin-bottom: 0;
     }
     
     h2 {
       color: #667eea;
-      margin-bottom: 20px;
+      margin-bottom: 8px;
       font-size: 20px;
     }
-    
+
     h3 {
-      color: #764ba2;
-      margin: 15px 0 10px 0;
+      color: #4a5568;
+      margin-bottom: 8px;
       font-size: 16px;
     }
-    
-    .setting-item {
-      margin-bottom: 15px;
+
+    .section-description, .group-description {
+      font-size: 14px;
+      color: #718096;
+      margin-bottom: 20px;
     }
     
+    .setting-item, .setting-item-group {
+      margin-bottom: 20px;
+    }
+
+    .setting-item-group {
+      padding: 15px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+    }
+
     .setting-item label {
       display: flex;
       align-items: center;
       cursor: pointer;
+      font-size: 15px;
+      color: #2d3748;
     }
     
     .setting-item input[type="checkbox"] {
-      margin-right: 10px;
+      width: 16px;
+      height: 16px;
+      margin-right: 12px;
     }
     
     .setting-item input[type="number"] {
       margin-left: 10px;
       padding: 5px 10px;
-      border: 1px solid #ddd;
+      border: 1px solid #ccc;
       border-radius: 4px;
       width: 80px;
     }
-    
+
     .radio-group {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 12px;
+      margin-top: 15px;
+      margin-left: 5px;
     }
     
     .radio-group label {
       margin: 0;
-      padding: 4px 0;
+      padding: 0;
+      font-weight: normal;
+    }
+    .radio-group input[type="radio"] {
+      margin-right: 8px;
+    }
+
+    .sub-options {
+      margin-left: 25px;
+      margin-top: 10px;
+      padding-left: 15px;
+      border-left: 2px solid #e5e7eb;
+      display: none; /* 默认隐藏 */
+    }
+    .sub-options small {
+        margin-left: 0;
+        margin-bottom: 10px;
     }
 
     small {
-      font-size: 12px;
+      display: block;
+      font-size: 13px;
+      color: #718096;
       line-height: 1.4;
       margin-top: 5px;
+      margin-left: 28px;
     }
-    
-    .help-content {
-      background: #f8f9fa;
-      padding: 20px;
-      border-radius: 8px;
+    .setting-item-group > small {
+      margin-left: 0;
     }
-    
-    .help-content p {
-      margin-bottom: 10px;
-      line-height: 1.6;
+    .setting-item > small {
+      margin-left: 28px;
     }
-    
-    .help-content ol {
-      margin-left: 20px;
-      line-height: 1.8;
+    label + small {
+      margin-left: 0;
     }
     
     .actions {
@@ -285,12 +341,12 @@
     }
     
     #save-btn {
-      background: #667eea;
+      background: #4f46e5;
       color: white;
     }
     
     #save-btn:hover {
-      background: #5a67d8;
+      background: #4338ca;
     }
     
     #reset-btn {
