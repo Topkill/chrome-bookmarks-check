@@ -46,7 +46,7 @@
 1. **克隆项目**
 ```bash
 git clone https://github.com/Topkill/chrome-bookmarks-check.git
-cd bookmark-sentry
+cd chrome-bookmarks-check
 ```
 
 2. **安装依赖**
