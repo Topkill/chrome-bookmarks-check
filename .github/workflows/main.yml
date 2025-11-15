@@ -1,0 +1,61 @@
+# 此 GitHub Action 的名称，会显示在 GitHub 的 Actions 标签页中
+name: Build and Package Extension (编译并打包插件)
+
+# 触发此 Action 的事件
+on:
+  # # 1. 当代码被推送到 "main" 分支时
+  # push:
+  #   branches: [ "main" ]
+  
+  # 2. 允许您在 GitHub Actions 页面上手动点击 "Run workflow" 按钮来触发
+  workflow_dispatch:
+
+# 定义一个或多个 "jobs" (任务)
+jobs:
+  build-and-package:
+    # 指定此任务运行在 GitHub 托管的最新版 Ubuntu 虚拟机上
+    runs-on: ubuntu-latest
+
+    # 任务的执行步骤
+    steps:
+      # 第 1 步：检出代码
+      # "uses" 关键字表示使用一个预先构建好的 Action
+      - name: Checkout repository (检出代码)
+        uses: actions/checkout@v4
+
+      # 第 2 步：设置 Node.js 环境
+      # 这是运行 npm 命令所必需的
+      - name: Setup Node.js (设置 Node.js 环境)
+        uses: actions/setup-node@v4
+        with:
+          # 指定要使用的 Node.js 版本
+          node-version: '20.x'
+          # 缓存 npm 的依赖包，加快后续构建速度
+          cache: 'npm'
+
+      # 第 3 步：安装依赖
+      # "run" 关键字表示执行一个命令行脚本
+      # 'npm ci' 是 'npm install' 的一个更快、更可靠的版本，专门用于 CI 环境
+      - name: Install dependencies (安装依赖)
+        run: npm ci
+
+      # 第 4 步：执行编译
+      # 这会运行您在 package.json 中定义的 "build" 脚本
+      - name: Build the extension (执行编译)
+        run: npm run build
+
+      # 第 5 步：打包插件为 ZIP 文件
+      # 'npm run build' 通常会把产物输出到 'dist' 目录
+      # (如果您的项目输出到 'build' 或其他目录，请修改下面的 'dist')
+      - name: Package the extension (打包插件为 ZIP)
+        run: (cd dist && zip -r ../extension.zip .)
+
+      # 第 6 步：上传编译产物 (extension.zip)
+      # 这会把生成的 .zip 文件附加到 Action 的运行结果中，方便您下载
+      - name: Upload build artifact (上传编译产物)
+        uses: actions/upload-artifact@v4
+        with:
+          # 您在下载时看到的产物名称
+          name: extension-build
+          # 要上传的文件的路径
+          path: extension.zip
