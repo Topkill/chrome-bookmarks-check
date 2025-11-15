@@ -17,6 +17,9 @@ export class BookmarkCacheService {
   };
   private isBuilding = false;
   private saveDebounceTimer: number | null = null;
+  // 在您的类属性中定义两个定时器变量
+ private saveTimer: number | null = null;
+ private rebuildTimer: number | null = null;
   
   // URL匹配设置（默认全部关闭，进行严格匹配）
   private urlMatchSettings = {
@@ -434,29 +437,89 @@ export class BookmarkCacheService {
    * 防抖保存
    */
   private debouncedSave() {
-    if (this.saveDebounceTimer) {
-      clearTimeout(this.saveDebounceTimer);
+  //  console.log('[DEBUG] debouncedSave: CALLED (保存任务被调用)');
+
+    // if (this.saveDebounceTimer) {
+    //   // 这一行日志就是您要找的证据！
+    //   console.log(`[DEBUG] debouncedSave: 发现一个已存在的定时器 (ID: ${this.saveDebounceTimer})。正在清除它。(这可能是一个“重建”定时器！)`);
+    //   clearTimeout(this.saveDebounceTimer);
+    // }
+    
+    // this.saveDebounceTimer = setTimeout(() => {
+    //   console.log('%c[DEBUG] debouncedSave: EXECUTING saveCache() (执行增量保存)', 'color: green;');
+    //   this.saveCache();
+    //   this.saveDebounceTimer = null;
+    // }, 1000) as unknown as number;
+
+    // console.log(`[DEBUG] debouncedSave: 已设置新的 [保存] 定时器 (ID: ${this.saveDebounceTimer})`);
+    console.log('[DEBUG] debouncedSave: CALLED (保存任务被调用)');
+
+    // 1. 如果一个重建已经在队列中，则无需“保存”
+    //    (因为重建本身就会保存)
+    if (this.rebuildTimer) {
+      console.log(`[DEBUG] debouncedSave: 检测到一个 [重建] 定时器 (ID: ${this.rebuildTimer}) 正在等待。取消本次“保存”。`);
+      return; 
     }
     
-    this.saveDebounceTimer = setTimeout(() => {
+    // 2. 清除任何待处理的“保存”
+    if (this.saveTimer) {
+      console.log(`[DEBUG] debouncedSave: 发现一个已存在的 [保存] 定时器 (ID: ${this.saveTimer})。正在清除它。`);
+      clearTimeout(this.saveTimer);
+    }
+    
+    // 3. 设置新的保存定时器 (使用 3 秒)
+    this.saveTimer = setTimeout(() => {
+      console.log('%c[DEBUG] debouncedSave: EXECUTING saveCache() (执行增量保存)', 'color: green;');
       this.saveCache();
-      this.saveDebounceTimer = null;
-    }, 1000) as unknown as number;
+      this.saveTimer = null;
+    }, 3000) as unknown as number; // <--- 3 秒
+
+    console.log(`[DEBUG] debouncedSave: 已设置新的 [保存] 定时器 (ID: ${this.saveTimer})`);
   }
 
   /**
    * 防抖重建（用于复杂变化）
    */
   private debouncedRebuild() {
-    if (this.saveDebounceTimer) {
-      clearTimeout(this.saveDebounceTimer);
+    // console.log('[DEBUG] debouncedRebuild: CALLED (重建任务被调用)');
+
+    // if (this.saveDebounceTimer) {
+    //   console.log(`[DEBUG] debouncedRebuild: 发现一个已存在的定时器 (ID: ${this.saveDebounceTimer})。正在清除它。`);
+    //   clearTimeout(this.saveDebounceTimer);
+    // }
+    
+    // this.saveDebounceTimer = setTimeout(() => {
+    //   console.log('%c[DEBUG] debouncedRebuild: EXECUTING fullRebuild() (执行完整重建)', 'color: red; font-weight: bold;');
+    //   this.fullRebuild();
+    //   this.saveDebounceTimer = null;
+    // }, 2000) as unknown as number;
+
+    // console.log(`[DEBUG] debouncedRebuild: 已设置新的 [重建] 定时器 (ID: ${this.saveDebounceTimer})`);
+    console.log('[DEBUG] debouncedRebuild: CALLED (重建任务被调用)');
+
+    // 1. 清除任何待处理的重建
+    if (this.rebuildTimer) {
+      console.log(`[DEBUG] debouncedRebuild: 发现一个已存在的 [重建] 定时器 (ID: ${this.rebuildTimer})。正在清除它。`);
+      clearTimeout(this.rebuildTimer);
+    }
+
+    // 2. 一个重建即将发生，所以任何待处理的“保存”都变得多余了
+    if (this.saveTimer) {
+      console.log(`[DEBUG] debouncedRebuild: 发现一个已存在的 [保存] 定时器 (ID: ${this.saveTimer})。正在清除它 (因为重建即将发生)。`);
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
     }
     
-    this.saveDebounceTimer = setTimeout(() => {
+    // 3. 设置新的重建定时器 (使用 5 秒)
+    this.rebuildTimer = setTimeout(() => {
+      console.log('%c[DEBUG] debouncedRebuild: EXECUTING fullRebuild() (执行完整重建)', 'color: red; font-weight: bold;');
       this.fullRebuild();
-      this.saveDebounceTimer = null;
-    }, 2000) as unknown as number;
+      this.rebuildTimer = null;
+    }, 5000) as unknown as number; // <--- 5 秒
+
+    console.log(`[DEBUG] debouncedRebuild: 已设置新的 [重建] 定时器 (ID: ${this.rebuildTimer})`);
   }
+  
 
   /**
    * 保存缓存到存储
