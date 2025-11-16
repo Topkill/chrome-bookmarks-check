@@ -59,7 +59,7 @@ jobs:
       # 第 5 步：定义带版本号的文件名
       # 我们使用 'github.ref_name' 来获取分支/标签名称
       - name: Set versioned artifact name (设置带版本号的产物名称)
-        run: echo "ARTIFACT_NAME=extension-${{ github.ref_name }}.zip" >> $GITHUB_ENV
+        run: echo "ARTIFACT_NAME=extension-build-${{ github.ref_name }}.zip" >> $GITHUB_ENV
 
       # 第 6 步：打包插件为 ZIP 文件 
       - name: Package the extension (打包插件为 ZIP)
@@ -82,10 +82,10 @@ jobs:
           # 注意：如果 ref 不是一个 tag, 这一步会失败。
           # 这个工作流假设您总是会选择一个 "Tag" 来运行。
           tag_name: ${{ github.ref_name }}
-          # 自动生成 Release 标题
-          name: "Release ${{ github.ref_name }}"
+          # 自动生成 Release 标题，注释掉默认使用标签名做标题
+          # name: "Release ${{ github.ref_name }}"
           # 自动生成的描述
-          body: "自动构建的插件包。"
+          # body: "自动构建的插件包。"
           # 关键：创建为草稿 (draft: true)
           draft: true
           # 指定要上传的文件
@@ -93,4 +93,6 @@ jobs:
             ${{ env.ARTIFACT_NAME }}
         env:
           # GITHUB_TOKEN 是由 GitHub Actions 自动提供的, 无需您手动设置
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+           # <--- 关键优化：优先使用 MY_PAT，否则回退到 GITHUB_TOKEN ---
+          GITHUB_TOKEN: ${{ secrets.MY_PAT || secrets.GITHUB_TOKEN }} 
