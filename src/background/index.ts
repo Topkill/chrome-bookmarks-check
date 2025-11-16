@@ -516,7 +516,22 @@ class BackgroundService {
 
         } else if (text && text.trim().length > 0) {
             // 情况 B：没有找到 URL，但选了文本，提示没有url
-            this.showNotification('提示', '选中文本中未找到有效URL。');
+            // this.showNotification('提示', '选中文本中未找到有效URL。');
+            // 不进行书签搜索，而是直接调用 showResults 显示“未找到URL”的结果
+            
+            // 1. 构建一个 "isTextSearch" 类型的空结果
+            // 这会模仿原版 searchInBookmarks 中 else 块的行为
+            // 但我们不调用 await chrome.bookmarks.search(text)
+            const resultsData = {
+              isTextSearch: true,       // 告诉 showResults 这是一个文本搜索
+              originalText: text,       // 显示用户选中的文本
+              results: []             // 结果为空
+            };
+            const isSingle = false;       // 文本搜索总是被视为 "多链接"
+            
+            // 2. 调用 showResults，它会根据设置打开页面或弹窗
+            this.showResults(resultsData, tabIdNum, isSingle);
+
                         
         } else {
             // 情况 C：什么也没选中

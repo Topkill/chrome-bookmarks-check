@@ -421,8 +421,9 @@ class ContentScript {
     modal.id = 'bookmark-sentry-modal';
     
     // 根据结果数量调整弹窗大小
-    const isMultiple = results.length > 1;
-        const width = isMultiple ? '500px' : '350px';
+    const isMultiple = results.length > 1 || results.length === 0;    
+    
+    const width = isMultiple ? '500px' : '350px';
     const maxHeight = isMultiple ? '400px' : 'auto';
     
     modal.style.cssText = `
