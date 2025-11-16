@@ -9,19 +9,23 @@ on:
   
   # 2. 允许您在 GitHub Actions 页面上手动点击 "Run workflow" 按钮来触发
   workflow_dispatch:
-
+  
 # 定义一个或多个 "jobs" (任务)
 jobs:
-  build-and-package:
-    # 指定此任务运行在 GitHub 托管的最新版 Ubuntu 虚拟机上
+  build-and-release:
+    name: Build and Release (构建并发行)
+    # 运行在最新的 Ubuntu 虚拟机上
     runs-on: ubuntu-latest
 
-    # 任务的执行步骤
+    # 任务步骤
     steps:
-      # 第 1 步：检出代码
-      # "uses" 关键字表示使用一个预先构建好的 Action
-      - name: Checkout repository (检出代码)
+      # 第 1 步：检出您在UI中选择的那个 Tag 对应的代码
+      - name: Checkout code at specified ref (检出指定引用代码)
         uses: actions/checkout@v4
+        with:
+          # 'github.ref_name' 会自动包含您在UI上选择的分支或标签名称
+          # (例如 "1.1.1" 或 "main")
+          ref: ${{ github.ref_name }}
 
       # 第 2 步：设置 Node.js 环境
       # 这是运行 npm 命令所必需的
@@ -44,18 +48,41 @@ jobs:
       - name: Build the extension (执行编译)
         run: npm run build
 
-      # 第 5 步：打包插件为 ZIP 文件
-      # 'npm run build' 通常会把产物输出到 'dist' 目录
-      # (如果您的项目输出到 'build' 或其他目录，请修改下面的 'dist')
-      - name: Package the extension (打包插件为 ZIP)
-        run: (cd dist && zip -r ../extension.zip .)
+      # 第 5 步：定义带版本号的文件名
+      # 我们使用 'github.ref_name' 来获取分支/标签名称
+      - name: Set versioned artifact name (设置带版本号的产物名称)
+        run: echo "ARTIFACT_NAME=extension-${{ github.ref_name }}.zip" >> $GITHUB_ENV
 
-      # 第 6 步：上传编译产物 (extension.zip)
+      # 第 6 步：打包插件为 ZIP 文件 
+      - name: Package the extension (打包插件为 ZIP)
+        run: (cd dist && zip -r ../${{ env.ARTIFACT_NAME }} .)
+
+      # 第 7 步：[可选] 上传构建产物到 Action 记录
       # 这会把生成的 .zip 文件附加到 Action 的运行结果中，方便您下载
-      - name: Upload build artifact (上传编译产物)
+      - name: Upload artifact for testing (上传打包产物)
         uses: actions/upload-artifact@v4
         with:
           # 您在下载时看到的产物名称
-          name: extension-build
-          # 要上传的文件的路径
-          path: extension.zip
+          name: extension-build-${{ github.ref_name }}
+          path: ${{ env.ARTIFACT_NAME }}
+
+      # 第 8 步：创建发行版草稿并上传 .zip 文件
+      - name: Create Draft Release and Upload Asset (创建发行版草稿并上传)
+        uses: softprops/action-gh-release@v1
+        with:
+          # 自动使用您选择的 ref (分支或标签)
+          # 注意：如果 ref 不是一个 tag, 这一步会失败。
+          # 这个工作流假设您总是会选择一个 "Tag" 来运行。
+          tag_name: ${{ github.ref_name }}
+          # 自动生成 Release 标题
+          name: "Release ${{ github.ref_name }}"
+          # 自动生成的描述
+          body: "自动构建的插件包。"
+          # 关键：创建为草稿 (draft: true)
+          draft: true
+          # 指定要上传的文件
+          files: |
+            ${{ env.ARTIFACT_NAME }}
+        env:
+          # GITHUB_TOKEN 是由 GitHub Actions 自动提供的, 无需您手动设置
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
