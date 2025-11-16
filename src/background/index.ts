@@ -515,23 +515,9 @@ class BackgroundService {
             })();
 
         } else if (text && text.trim().length > 0) {
-            // 情况 B：没有找到 URL，但选了文本，执行“文本搜索书签” (保持原有功能)
-            (async () => {
-                try {
-                    const results = await chrome.bookmarks.search(text);
-                    const resultsData = {
-                      isTextSearch: true,
-                      originalText: text,
-                      query: text,
-                      results: results.map(b => ({ title: b.title, url: b.url }))
-                    };
-                    this.showResults(resultsData, tabIdNum, false);
-                } catch (error) {
-                    console.error('[Background] 搜索书签失败 (text):', error);
-                    this.showNotification('错误', '搜索书签失败，请重试');
-                }
-            })();
-            
+            // 情况 B：没有找到 URL，但选了文本，提示没有url
+            this.showNotification('提示', '选中文本中未找到有效URL。');
+                        
         } else {
             // 情况 C：什么也没选中
              this.showNotification('提示', '未选中文本或链接。');

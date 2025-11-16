@@ -422,7 +422,7 @@ class ContentScript {
     
     // 根据结果数量调整弹窗大小
     const isMultiple = results.length > 1;
-    const width = isMultiple ? '500px' : '350px';
+        const width = isMultiple ? '500px' : '350px';
     const maxHeight = isMultiple ? '400px' : 'auto';
     
     modal.style.cssText = `
@@ -516,7 +516,7 @@ class ContentScript {
       content += `<p style="margin: 0 0 10px 0; word-wrap: break-word;"><b>原始链接:</b> <a href="${result.original}" target="_blank" rel="noopener noreferrer" style="color: #007bff;">${result.original}</a></p>`;
       content += `<p style="margin: 0 0 10px 0; word-wrap: break-word;"><b>规范化:</b> <span style="color: #555;">${result.normalized}</span></p>`;
       if (result.isBookmarked) {
-        content += `<p style="margin: 0; word-wrap: break-word;"><b>书签位置:</b> <a href="${result.bookmarkUrl}" target="_blank" rel="noopener noreferrer" style="color: #007bff;">${result.bookmarkUrl || '未知'}</a></p>`;
+        content += `<p style="margin: 0; word-wrap: break-word;"><b>书签链接:</b> <a href="${result.bookmarkUrl}" target="_blank" rel="noopener noreferrer" style="color: #007bff;">${result.bookmarkUrl || '未知'}</a></p>`;
       }
     }
 
