@@ -1,6 +1,6 @@
 {
   "name": "bookmark-sentry",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "书签哨兵 - Chrome扩展，用于检测网页上的链接是否已被收藏",
   "type": "module",
   "scripts": {

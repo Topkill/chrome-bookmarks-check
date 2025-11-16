@@ -1,6 +1,7 @@
 .history
 开发说明书.md
 .vscode
+.vite
 node_modules
 dist
 .vite
