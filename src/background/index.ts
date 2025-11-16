@@ -544,7 +544,7 @@ class BackgroundService {
         if (result.isBookmarked) {
           let message = `原始链接: ${this.truncateUrl(result.original)}\n`;
           message += `规范化: ${this.truncateUrl(result.normalized)}\n`;
-          message += `书签位置: ${this.truncateUrl(result.bookmarkUrl || '未知')}`;
+          message += `书签链接: ${this.truncateUrl(result.bookmarkUrl || '未知')}`;
           this.showNotification('✅ 链接已收藏', message, result.original);
         } else {
           let message = `原始链接: ${this.truncateUrl(result.original)}\n`;

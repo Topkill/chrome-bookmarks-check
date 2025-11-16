@@ -497,7 +497,7 @@ class ContentScript {
             </p>
             ${result.isBookmarked ?
               `<p style="margin: 0; word-wrap: break-word; font-size: 12px;">
-                <b>书签位置:</b> <a href="${result.bookmarkUrl}" target="_blank" rel="noopener noreferrer" style="color: #28a745;">${this.truncateUrl(result.bookmarkUrl || '未知', 50)}</a>
+                <b>书签链接:</b> <a href="${result.bookmarkUrl}" target="_blank" rel="noopener noreferrer" style="color: #28a745;">${this.truncateUrl(result.bookmarkUrl || '未知', 50)}</a>
               </p>` : ''
             }
           </div>
