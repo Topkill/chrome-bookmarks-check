@@ -341,11 +341,11 @@ export class BookmarkCacheService {
         urlObj.hash = '';
       }
       
-      // 4. 处理大小写（仅域名）
-      if (this.urlMatchSettings.ignoreCase) {
-        urlObj.hostname = urlObj.hostname.toLowerCase();
-      }
-      
+      // // 4. 处理大小写（仅域名）
+      // if (this.urlMatchSettings.ignoreCase) {
+      //   urlObj.hostname = urlObj.hostname.toLowerCase();
+      // }
+     
       // 5. 处理www前缀
       if (this.urlMatchSettings.ignoreWww) {
         urlObj.hostname = urlObj.hostname.replace(/^www\./, '');
@@ -364,6 +364,14 @@ export class BookmarkCacheService {
       if (this.urlMatchSettings.ignoreTrailingSlash && normalized.endsWith('/')) {
         normalized = normalized.slice(0, -1);
       }
+
+      // ===== 核心修改在这里 =====
+      //处理大小写（全部）
+      // 如果设置了"忽略大小写"，则将规范化后的【整个】URL字符串转换为小写
+      if (this.urlMatchSettings.ignoreCase) {
+        return normalized.toLowerCase();
+      }
+      // ========================
       
       return normalized;
     } catch {

@@ -1,6 +1,47 @@
 import { BookmarkCacheService } from './services/bookmark-cache-service';
 import type { Message, QueryResultPayload, CacheStatusPayload, ExtractAndShowResultsMessage, ReloadSettingsMessage, ShowSingleLinkResultMessage, ShowMultipleLinksResultMessage, CheckUrlsAndShowResultsMessage } from '@/types/messaging';
+// 将这个函数添加到 src/background/index.ts 文件的顶部或 BackgroundService 类之外
+function _injectedFunc_getLinksFromSelection() {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) {
+    return { text: null, textUrls: [], linkUrls: [] };
+  }
 
+  // 1. 获取纯文本 (用于提取文本链接 和 作为备用搜索)
+  const plainText = selection.toString();
+  
+  // 2. 从纯文本中提取 URL (与 background/index.ts 中的 extractUrlsFromText 逻辑一致)
+  const urlPatterns = [/https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi, /www\.[^\s<>"{}|\\^`\[\]]+/gi];
+  const textUrls = new Set<string>();
+  for (const pattern of urlPatterns) {
+      const matches = plainText.match(pattern);
+      if (matches) {
+          matches.forEach(url => textUrls.add(url));
+      }
+  }
+
+  // 3. 从选中的 HTML 中提取 <a> 标签的链接
+  const range = selection.getRangeAt(0);
+  const container = document.createElement('div');
+  container.appendChild(range.cloneContents());
+  
+  const links = container.querySelectorAll('a[href]');
+  const linkUrls = new Set<string>();
+  links.forEach(link => {
+    // 使用 .href 属性来获取完整的绝对 URL
+    const absoluteUrl = (link as HTMLAnchorElement).href;
+    // 过滤掉 'javascript:', 'mailto:' 等非 http 链接
+    if (absoluteUrl && absoluteUrl.startsWith('http')) {
+        linkUrls.add(absoluteUrl);
+    }
+  });
+  
+  return { 
+    text: plainText, 
+    textUrls: Array.from(textUrls), 
+    linkUrls: Array.from(linkUrls) 
+  };
+}
 /**
  * Background Service Worker 入口
  *
@@ -45,6 +86,7 @@ class BackgroundService {
     // 异步初始化其他服务（不阻塞事件响应）
     this.initialize();
   }
+  
 
   /**
    * 设置所有事件监听器
@@ -424,16 +466,79 @@ class BackgroundService {
     if (info.menuItemId === 'check-link' && info.linkUrl) {
       this.checkLinkBookmark(info.linkUrl, tab.id);
     } else if (info.menuItemId === 'check-selected-text') {
-      chrome.scripting.executeScript({ target: { tabId: tab.id }, func: () => window.getSelection()?.toString() },
-        (injectionResults) => {
-          if (chrome.runtime.lastError || !injectionResults || injectionResults.length === 0) return;
-          const selectedText = injectionResults[0].result;
-          if (typeof selectedText === 'string' && selectedText) {
-            this.searchInBookmarks(selectedText, tab.id as number);
-          }
+      chrome.scripting.executeScript({ 
+        target: { tabId: tab.id }, 
+        func: _injectedFunc_getLinksFromSelection // 使用我们上面定义的函数
+      },
+      (injectionResults) => {
+        if (chrome.runtime.lastError || !injectionResults || !injectionResults[0] || !injectionResults[0].result) {
+           console.error('无法注入脚本或获取选中内容:', chrome.runtime.lastError?.message);
+           return;
         }
-      );
-    } else if (info.menuItemId === 'extract-all-links' && tab) {
+
+        const { text, textUrls, linkUrls } = injectionResults[0].result;
+        const tabIdNum = tab.id as number;
+
+        // 1. 合并并去重所有来源的 URL
+        const allUrls = new Set<string>();
+        [...textUrls, ...linkUrls].forEach(url => {
+            let processedUrl = url;
+            // 保持与 extractUrlsFromText 一致的处理
+            if (processedUrl.startsWith('www.')) {
+                processedUrl = 'https://' + processedUrl;
+            }
+            if (processedUrl.startsWith('http')) {
+                allUrls.add(processedUrl);
+            }
+        });
+        
+        const combinedUrls = Array.from(allUrls);
+
+        // 2. 根据 `searchInBookmarks` 的逻辑分情况处理
+        if (combinedUrls.length > 0) {
+            // 情况 A：找到了 URL，执行 URL 检查
+            (async () => {
+                try {
+                    const detailedResults = await this.bookmarkCache.queryUrlsWithDetails(combinedUrls);
+                    const resultsData = {
+                        originalText: text || `选中的 ${combinedUrls.length} 个链接`,
+                        results: detailedResults,
+                        source: 'context-menu-multi-link' // 保持来源一致
+                    };
+                    // 判断是单链接还是多链接
+                    const isSingle = combinedUrls.length === 1;
+                    this.showResults(resultsData, tabIdNum, isSingle);
+                } catch (error) {
+                    console.error('[Background] 检查选中链接失败:', error);
+                    this.showNotification('错误', '检查链接失败，请重试');
+                }
+            })();
+
+        } else if (text && text.trim().length > 0) {
+            // 情况 B：没有找到 URL，但选了文本，提示没有url
+            // this.showNotification('提示', '选中文本中未找到有效URL。');
+            // 不进行书签搜索，而是直接调用 showResults 显示“未找到URL”的结果
+            
+            // 1. 构建一个 "isTextSearch" 类型的空结果
+            // 这会模仿原版 searchInBookmarks 中 else 块的行为
+            // 但我们不调用 await chrome.bookmarks.search(text)
+            const resultsData = {
+              isTextSearch: true,       // 告诉 showResults 这是一个文本搜索
+              originalText: text,       // 显示用户选中的文本
+              results: []             // 结果为空
+            };
+            const isSingle = false;       // 文本搜索总是被视为 "多链接"
+            
+            // 2. 调用 showResults，它会根据设置打开页面或弹窗
+            this.showResults(resultsData, tabIdNum, isSingle);
+
+                        
+        } else {
+            // 情况 C：什么也没选中
+             this.showNotification('提示', '未选中文本或链接。');
+        }
+      });
+    }else if (info.menuItemId === 'extract-all-links' && tab) {
       this.extractAndShowResults(tab, 'context-menu-page-extraction');
     }
   }
@@ -544,7 +649,7 @@ class BackgroundService {
         if (result.isBookmarked) {
           let message = `原始链接: ${this.truncateUrl(result.original)}\n`;
           message += `规范化: ${this.truncateUrl(result.normalized)}\n`;
-          message += `书签位置: ${this.truncateUrl(result.bookmarkUrl || '未知')}`;
+          message += `书签链接: ${this.truncateUrl(result.bookmarkUrl || '未知')}`;
           this.showNotification('✅ 链接已收藏', message, result.original);
         } else {
           let message = `原始链接: ${this.truncateUrl(result.original)}\n`;

@@ -421,7 +421,8 @@ class ContentScript {
     modal.id = 'bookmark-sentry-modal';
     
     // 根据结果数量调整弹窗大小
-    const isMultiple = results.length > 1;
+    const isMultiple = results.length > 1 || results.length === 0;    
+    
     const width = isMultiple ? '500px' : '350px';
     const maxHeight = isMultiple ? '400px' : 'auto';
     
@@ -497,7 +498,7 @@ class ContentScript {
             </p>
             ${result.isBookmarked ?
               `<p style="margin: 0; word-wrap: break-word; font-size: 12px;">
-                <b>书签位置:</b> <a href="${result.bookmarkUrl}" target="_blank" rel="noopener noreferrer" style="color: #28a745;">${this.truncateUrl(result.bookmarkUrl || '未知', 50)}</a>
+                <b>书签链接:</b> <a href="${result.bookmarkUrl}" target="_blank" rel="noopener noreferrer" style="color: #28a745;">${this.truncateUrl(result.bookmarkUrl || '未知', 50)}</a>
               </p>` : ''
             }
           </div>
@@ -516,7 +517,7 @@ class ContentScript {
       content += `<p style="margin: 0 0 10px 0; word-wrap: break-word;"><b>原始链接:</b> <a href="${result.original}" target="_blank" rel="noopener noreferrer" style="color: #007bff;">${result.original}</a></p>`;
       content += `<p style="margin: 0 0 10px 0; word-wrap: break-word;"><b>规范化:</b> <span style="color: #555;">${result.normalized}</span></p>`;
       if (result.isBookmarked) {
-        content += `<p style="margin: 0; word-wrap: break-word;"><b>书签位置:</b> <a href="${result.bookmarkUrl}" target="_blank" rel="noopener noreferrer" style="color: #007bff;">${result.bookmarkUrl || '未知'}</a></p>`;
+        content += `<p style="margin: 0; word-wrap: break-word;"><b>书签链接:</b> <a href="${result.bookmarkUrl}" target="_blank" rel="noopener noreferrer" style="color: #007bff;">${result.bookmarkUrl || '未知'}</a></p>`;
       }
     }
 
