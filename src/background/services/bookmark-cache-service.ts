@@ -370,8 +370,22 @@ export class BookmarkCacheService {
       let normalized = urlObj.toString();
       
       // 再次处理末尾斜杠
-      if (this.urlMatchSettings.ignoreTrailingSlash && normalized.endsWith('/')) {
-        normalized = normalized.slice(0, -1);
+      if (this.urlMatchSettings.ignoreTrailingSlash) {
+        // "忽略" 设置为 ON：
+        // 只要带了斜杠，就移除它
+        if (normalized.endsWith('/')) {
+          normalized = normalized.slice(0, -1);
+        }
+      } else {
+        // "忽略" 设置为 OFF：
+        // 检查：
+        // 1. new URL() 加上了斜杠 (normalized.endsWith('/'))
+        // 2. 并且它是一个根域名 (urlObj.pathname === '/')
+        // 3. 并且我们传入的原始 URL 并没有斜杠 (!url.endsWith('/'))
+        if (normalized.endsWith('/') && urlObj.pathname === '/' && !url.endsWith('/')) {
+            // 把它改回去，以匹配原始输入
+          normalized = normalized.slice(0, -1);
+        }
       }
 
       // ===== 核心修改在这里 =====
