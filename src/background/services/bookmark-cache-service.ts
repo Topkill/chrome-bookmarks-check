@@ -176,6 +176,9 @@ export class BookmarkCacheService {
       console.log('[BookmarkCacheService] urlMap为空，开始重建');
       await this.buildUrlMap();
     }
+    // ===== 日志 8: 确认设置 =====
+    console.log('[DEBUG-CacheService] 开始查询。URL匹配设置:', this.urlMatchSettings);
+    console.log('----------------------------------------------------');
 
     const results: {
       original: string;
@@ -188,6 +191,11 @@ export class BookmarkCacheService {
       const normalizedUrl = this.normalizeUrl(url);
       let isBookmarked = false;
       let bookmarkUrl: string | undefined;
+      // ===== 日志 9: 跟踪每个URL的规范化结果 =====
+      console.log(`[DEBUG-CacheService] 
+        原始:   "${url}"
+        规范化后: "${normalizedUrl}"`);
+      // ======================================
 
       // 一级过滤：布隆过滤器
       if (this.bloomFilter && this.bloomFilter.contains(normalizedUrl)) {
@@ -206,6 +214,7 @@ export class BookmarkCacheService {
         bookmarkUrl
       });
     }
+    console.log('----------------------------------------------------');
 
     return results;
   }

@@ -2,6 +2,8 @@ import { BookmarkCacheService } from './services/bookmark-cache-service';
 import type { Message, QueryResultPayload, CacheStatusPayload, ExtractAndShowResultsMessage, ReloadSettingsMessage, ShowSingleLinkResultMessage, ShowMultipleLinksResultMessage, CheckUrlsAndShowResultsMessage } from '@/types/messaging';
 // 将这个函数添加到 src/background/index.ts 文件的顶部或 BackgroundService 类之外
 function _injectedFunc_getLinksFromSelection() {
+  // ===== 日志 1: 确认函数被注入 =====
+  console.log('[DEBUG-ContentScript] _injectedFunc_getLinksFromSelection: 注入成功。');
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0) {
     return { text: null, textUrls: [], linkUrls: [] };
@@ -11,11 +13,19 @@ function _injectedFunc_getLinksFromSelection() {
   const plainText = selection.toString();
   
   // 2. 从纯文本中提取 URL (与 background/index.ts 中的 extractUrlsFromText 逻辑一致)
-  const urlPatterns = [/https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi, /www\.[^\s<>"{}|\\^`\[\]]+/gi];
+  const urlPatterns = [
+    /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi,
+    // ===== 核心修改在这里 =====
+    // 使用否定反向查找 (Negative Lookbehind):
+    // 仅当 "www." 前面 *没有* "http://" 或 "https://" 时才匹配
+    /(?<!https?:\/\/)(www\.[^\s<>"{}|\\^`\[\]]+)/gi
+  ];
   const textUrls = new Set<string>();
   for (const pattern of urlPatterns) {
       const matches = plainText.match(pattern);
       if (matches) {
+        // ===== 日志 2: 确认正则表达式匹配 =====
+          console.log(`[DEBUG-ContentScript] 正则 ${urlPatterns} 匹配到:`, matches);
           matches.forEach(url => textUrls.add(url));
       }
   }
@@ -26,21 +36,52 @@ function _injectedFunc_getLinksFromSelection() {
   container.appendChild(range.cloneContents());
   
   const links = container.querySelectorAll('a[href]');
+  console.log(`[DEBUG-ContentScript] links:`, links);
+
   const linkUrls = new Set<string>();
   links.forEach(link => {
-    // 使用 .href 属性来获取完整的绝对 URL
-    const absoluteUrl = (link as HTMLAnchorElement).href;
-    // 过滤掉 'javascript:', 'mailto:' 等非 http 链接
-    if (absoluteUrl && absoluteUrl.startsWith('http')) {
-        linkUrls.add(absoluteUrl);
+    // 1. 优先读取 HTML 属性 (没有自动斜杠)
+    const rawHref = (link as HTMLAnchorElement).getAttribute('href');
+
+    if (!rawHref) return; // 如果 href 为空，跳过
+
+    let urlToAdd = '';
+
+    if (rawHref.startsWith('http://') || rawHref.startsWith('https://')) {
+        // 2. 如果它已经是绝对 URL (您的情况)
+        // 我们就使用这个原始字符串，它 *没有* 末尾的斜杠
+        urlToAdd = rawHref;
+        
+    } else if (rawHref.startsWith('javascript:') 
+      || rawHref.startsWith('mailto:') 
+      //|| rawHref.startsWith('#')
+      ) {
+        // 3. 如果是无效链接，跳过
+        return;
+        
+    } else {
+        // 4. 如果是相对路径 (例如 /about.html 或 page.html)
+        // 我们 *必须* 回退到使用 .href 属性
+        // 来让浏览器将其解析为完整的绝对URL
+        urlToAdd = (link as HTMLAnchorElement).href;
+    }
+      console.log(`循环中，[DEBUG-ContentScript] <a> 标签提取到:`, urlToAdd);
+
+    // 5. 确保我们最终添加的链接是有效的 http 链接
+    if (urlToAdd.startsWith('http')) {
+       linkUrls.add(urlToAdd);
     }
   });
-  
-  return { 
+  // ===== 日志 3: 确认 <a> 标签提取 =====
+  console.log(`[DEBUG-ContentScript] <a> 标签提取到:`, Array.from(linkUrls));
+  const result = { 
     text: plainText, 
     textUrls: Array.from(textUrls), 
     linkUrls: Array.from(linkUrls) 
   };
+  // ===== 日志 4: 确认最终返回的数据 =====
+  console.log('[DEBUG-ContentScript] 返回给后台的数据:', result);
+  return result;
 }
 /**
  * Background Service Worker 入口
@@ -477,6 +518,8 @@ class BackgroundService {
         }
 
         const { text, textUrls, linkUrls } = injectionResults[0].result;
+        // ===== 日志 5: 确认后台收到的原始数据 =====
+        console.log('[DEBUG-Background] 后台收到的原始数据:', { text, textUrls, linkUrls });
         const tabIdNum = tab.id as number;
 
         // 1. 合并并去重所有来源的 URL
@@ -485,6 +528,8 @@ class BackgroundService {
             let processedUrl = url;
             // 保持与 extractUrlsFromText 一致的处理
             if (processedUrl.startsWith('www.')) {
+              // ===== 日志 6: 确认 www 规则被触发 =====
+                console.log(`[DEBUG-Background] 'www.' 规则触发: "${processedUrl}" -> "https://${processedUrl}"`);
                 processedUrl = 'https://' + processedUrl;
             }
             if (processedUrl.startsWith('http')) {
@@ -493,6 +538,8 @@ class BackgroundService {
         });
         
         const combinedUrls = Array.from(allUrls);
+        // ===== 日志 7: 确认合并后、规范化前的最终列表 =====
+        console.log('[DEBUG-Background] 合并后的URL列表 (发送给规范化):', combinedUrls);
 
         // 2. 根据 `searchInBookmarks` 的逻辑分情况处理
         if (combinedUrls.length > 0) {
