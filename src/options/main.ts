@@ -100,8 +100,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // 基本设置
     (document.getElementById('enable-auto-marking') as HTMLInputElement).checked = false;
     (document.getElementById('show-notifications') as HTMLInputElement).checked = true;
-   (document.querySelector('input[name="single-link-action"][value="page"]') as HTMLInputElement).checked = true;
-    (document.querySelector('input[name="multi-link-action"][value="page"]') as HTMLInputElement).checked = true;
+   (document.querySelector('input[name="single-link-action"][value="notification"]') as HTMLInputElement).checked = true;
+    (document.querySelector('input[name="multi-link-action"][value="modal"]') as HTMLInputElement).checked = true;
     (document.querySelector('input[name="notification-detail-action"][value="page"]') as HTMLInputElement).checked = true;
     
     // URL 编辑设置

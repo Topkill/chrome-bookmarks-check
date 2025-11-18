@@ -824,8 +824,8 @@ class BackgroundService {
   private async loadSettings() {
     try {
       const { settings } = await chrome.storage.local.get(['settings']);
-      this.singleLinkAction = settings?.singleLinkAction || 'page';
-      this.multiLinkAction = settings?.multiLinkAction || 'page';
+      this.singleLinkAction = settings?.singleLinkAction || 'notification';
+      this.multiLinkAction = settings?.multiLinkAction || 'modal';
       this.notificationDuration = settings?.notificationDuration ?? 15;
       this.singleModalDuration = settings?.singleModalDuration ?? 5;
       this.multiModalDuration = settings?.multiModalDuration ?? 15;
