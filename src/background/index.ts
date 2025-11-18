@@ -505,7 +505,26 @@ class BackgroundService {
     }
     
     if (info.menuItemId === 'check-link' && info.linkUrl) {
-      this.checkLinkBookmark(info.linkUrl, tab.id);
+      let urlToCheck = info.linkUrl;
+      try {
+        const urlObj = new URL(info.linkUrl);
+        
+        // 检查是否为根域名 (即路径只有 '/')
+        if (urlObj.pathname === '/') {
+          // 如果是根域名，去掉末尾的 '/', 
+          // 使用 urlObj.origin (例如 "http://xianliu.ys168.com")
+          // 这就与 getAttribute('href') 的行为一致了
+          urlToCheck = urlObj.origin;
+        }
+        // 如果 pathname 不是 '/', (例如 /blog/page-1/), 
+        // 我们就保留原始的 info.linkUrl，不做任何修改
+
+      } catch (e) {
+        // 如果 URL 解析失败 (虽然不太可能), 
+        // 还是使用原始的 info.linkUrl
+        console.error("URL a nalysis failed in context menu:", e);
+      }
+      this.checkLinkBookmark(urlToCheck, tab.id);
     } else if (info.menuItemId === 'check-selected-text') {
       chrome.scripting.executeScript({ 
         target: { tabId: tab.id }, 
