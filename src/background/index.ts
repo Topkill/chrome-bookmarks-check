@@ -8,11 +8,43 @@ function _injectedFunc_getLinksFromSelection() {
   if (!selection || selection.rangeCount === 0) {
     return { text: null, textUrls: [], linkUrls: [] };
   }
+  
 
-  // 1. 获取纯文本 (用于提取文本链接 和 作为备用搜索)
+  // ---------------------------------------------------------
+  // 1. 定义处理单个链接的逻辑 (复用您的去斜杠/getAttribute逻辑)
+  // ---------------------------------------------------------
+  const processLink = (link: HTMLAnchorElement) => {
+      // 1. 优先读取 HTML 属性 (没有自动斜杠)
+      const rawHref = link.getAttribute('href');
+      if (!rawHref) return;  // 如果 href 为空，跳过
+
+      let urlToAdd = '';
+
+      if (rawHref.startsWith('http://') || rawHref.startsWith('https://')) {
+          // 2. 如果它已经是绝对 URL ，使用原始字符串, 它 *没有* 末尾的斜杠
+          urlToAdd = rawHref;
+      } else if (rawHref.startsWith('javascript:') || rawHref.startsWith('mailto:') /*|| rawHref.startsWith('#')*/) {
+          // 3. 无效链接跳过
+          return;
+      } else {
+        // 4. 如果是相对路径 (例如 /about.html 或 page.html)
+        // 我们 *必须* 回退到使用 .href 属性
+        // 来让浏览器将其解析为完整的绝对URL
+          urlToAdd = link.href;
+      }
+      
+      // 5. 确保是有效 http 链接
+      if (urlToAdd.startsWith('http')) {
+         linkUrls.add(urlToAdd);
+      }
+      console.log(`----[DEBUG-ContentScript] <a> 标签提取到:`, urlToAdd);
+
+  };
+
+  // 2. 获取纯文本 (用于提取文本链接 和 作为备用搜索)
   const plainText = selection.toString();
   
-  // 2. 从纯文本中提取 URL (与 background/index.ts 中的 extractUrlsFromText 逻辑一致)
+  // 3. 从纯文本中提取 URL (与 background/index.ts 中的 extractUrlsFromText 逻辑一致)
   const urlPatterns = [
     /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi,
     // ===== 核心修改在这里 =====
@@ -29,49 +61,46 @@ function _injectedFunc_getLinksFromSelection() {
           matches.forEach(url => textUrls.add(url));
       }
   }
-
-  // 3. 从选中的 HTML 中提取 <a> 标签的链接
+  // 4. 从选中的 HTML 中提取 <a> 标签的链接
+  const linkUrls = new Set<string>();
   const range = selection.getRangeAt(0);
+
+  // ---------------------------------------------------------
+  // 4.1. 策略 A: 向下查找 (处理包含多个链接的情况)
+  // ---------------------------------------------------------
   const container = document.createElement('div');
   container.appendChild(range.cloneContents());
+  console.log(`[DEBUG-ContentScript] container:`, container);
+
   
-  const links = container.querySelectorAll('a[href]');
-  console.log(`[DEBUG-ContentScript] links:`, links);
+  const linksInside = container.querySelectorAll('a[href]');
+  console.log(`[DEBUG-ContentScript] linksInside:`, linksInside);
 
-  const linkUrls = new Set<string>();
-  links.forEach(link => {
-    // 1. 优先读取 HTML 属性 (没有自动斜杠)
-    const rawHref = (link as HTMLAnchorElement).getAttribute('href');
+  linksInside.forEach(link => processLink(link as HTMLAnchorElement));
 
-    if (!rawHref) return; // 如果 href 为空，跳过
+  // ---------------------------------------------------------
+  // 4.2. 策略 B: 向上查找 (处理选中链接内部的情况)
+  // ---------------------------------------------------------
+  let commonAncestor = range.commonAncestorContainer;
+  // 如果祖先是文本节点，取其父元素
+  if (commonAncestor.nodeType === Node.TEXT_NODE) {
+      commonAncestor = commonAncestor.parentElement as HTMLElement;
+  }
+  
+  // 查找最近的 <a> 标签
+  // closest 是原生 DOM API，非常高效且准确
+  const wrappingLink = (commonAncestor as Element).closest('a[href]');
+  if (wrappingLink) {
+      console.log('[DEBUG-ContentScript] 发现选区在链接内部:', wrappingLink);
+      processLink(wrappingLink as HTMLAnchorElement);
+  }
 
-    let urlToAdd = '';
-
-    if (rawHref.startsWith('http://') || rawHref.startsWith('https://')) {
-        // 2. 如果它已经是绝对 URL (您的情况)
-        // 我们就使用这个原始字符串，它 *没有* 末尾的斜杠
-        urlToAdd = rawHref;
-        
-    } else if (rawHref.startsWith('javascript:') 
-      || rawHref.startsWith('mailto:') 
-      //|| rawHref.startsWith('#')
-      ) {
-        // 3. 如果是无效链接，跳过
-        return;
-        
-    } else {
-        // 4. 如果是相对路径 (例如 /about.html 或 page.html)
-        // 我们 *必须* 回退到使用 .href 属性
-        // 来让浏览器将其解析为完整的绝对URL
-        urlToAdd = (link as HTMLAnchorElement).href;
-    }
-      console.log(`循环中，[DEBUG-ContentScript] <a> 标签提取到:`, urlToAdd);
-
-    // 5. 确保我们最终添加的链接是有效的 http 链接
-    if (urlToAdd.startsWith('http')) {
-       linkUrls.add(urlToAdd);
-    }
-  });
+  // ---------------------------------------------------------
+  // 5. 抑制逻辑：如果找到了超链接，清空纯文本正则结果
+  // ---------------------------------------------------------
+  // if (linkUrls.size > 0) {
+  //     textUrls.clear();
+  // }
   // ===== 日志 3: 确认 <a> 标签提取 =====
   console.log(`[DEBUG-ContentScript] <a> 标签提取到:`, Array.from(linkUrls));
   const result = { 
