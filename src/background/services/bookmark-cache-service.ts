@@ -20,6 +20,9 @@ export class BookmarkCacheService {
   // 在您的类属性中定义两个定时器变量
  private saveTimer: number | null = null;
  private rebuildTimer: number | null = null;
+ // 【新增】标记是否正在初始化（加载缓存中）
+  private isInitializing = false;
+  private pendingAdditions: string[] = []; // 暂存队列
   
   // URL匹配设置（默认全部关闭，进行严格匹配）
   private urlMatchSettings = {
@@ -51,34 +54,54 @@ export class BookmarkCacheService {
    */
   async initialize(): Promise<void> {
     console.log('[BookmarkCacheService] 初始化开始');
-    
+    // 1. 监听器 (必须在最前)
+    this.setupBookmarkListeners();
+
+     // 2. 在做任何缓存操作前，必须先加载用户的匹配设置！
+    //    否则 loadCacheToMemory 或 fullRebuild 里的 normalizeUrl 都会用错配置。
+    await this.loadUrlMatchSettings();
+
+    // 3. 开启初始化保护
+    this.isInitializing = true;
+    this.pendingAdditions = []; // 清空队列
+
     try {
       // 尝试从存储加载缓存
       const cache = await StorageService.loadCache();
       
       if (cache && this.isValidCache(cache)) {
         // 缓存有效，加载到内存
-        this.loadCacheToMemory(cache);
+        this.loadCacheToMemory(cache); // ⚠️ 这里发生了“覆盖”
         console.log('[BookmarkCacheService] 从存储加载缓存成功');
         // 缓存有效但urlMap是内存独有的，需要重建
-        this.buildUrlMap();
+        await this.buildUrlMap();
       } else {
-        // 缓存无效或不存在，触发全量重建
+        this.isInitializing = false;
+         // 缓存无效或不存在，触发全量重建
         console.log('[BookmarkCacheService] 缓存无效或不存在，开始全量重建');
         await this.fullRebuild();
       }
-
-      // 设置书签变化监听器
-      this.setupBookmarkListeners();
-      
-      // 加载URL匹配设置
-      await this.loadUrlMatchSettings();
     } catch (error) {
       console.error('[BookmarkCacheService] 初始化失败:', error);
       throw error;
+    } finally {
+      // 3. 关闭保护模式，处理暂存队列
+      this.isInitializing = false;
+      
+      // 【修改】不再触发 fullRebuild，而是高效地“补录”刚才丢失的书签
+      if (this.pendingAdditions.length > 0) {
+        console.log(`[BookmarkCacheService] 处理初始化期间的 ${this.pendingAdditions.length} 个暂存书签`);
+        
+        // 逐个重新执行添加逻辑（这走的是高效的增量逻辑）
+        this.pendingAdditions.forEach(url => {
+          this.onBookmarkAdded(url);
+        });
+        
+        // 清空队列
+        this.pendingAdditions = [];
+      }
     }
   }
-
   /**
    * 全量重建缓存
    */
@@ -96,8 +119,10 @@ export class BookmarkCacheService {
 
       // 获取所有书签
       const bookmarkTree = await chrome.bookmarks.getTree();
+      console.log('🕵️‍♂️ [侦探日志] 重建时的 ignoreCase 设置:', this.urlMatchSettings.ignoreCase);
       const { urlSet, urlMap } = this.extractUrlsFromTree(bookmarkTree);
-      
+      const testUrl = Array.from(urlSet).find(u => u.toLowerCase().includes('Chrome-Bookmarks-check'));
+    console.log('🕵️‍♂️ [侦探日志] 缓存里最终存入的 URL 是:', testUrl);
       console.log('[BookmarkCacheService] 提取到', urlSet.size, '个唯一URL');
 
       // 构建新的布隆过滤器
@@ -463,6 +488,15 @@ export class BookmarkCacheService {
    * 处理书签添加
    */
   private onBookmarkAdded(url: string) {
+    // 【修改】如果正在初始化，把 URL 扔进暂存队列，不要去触发重建
+    if (this.isInitializing || this.isBuilding) {
+      console.log('[BookmarkCacheService] 初始化期间检测到书签添加，已加入暂存队列:', url);
+      this.pendingAdditions.push(url);
+      //【建议添加】直接返回。
+      // 既然内存马上要被覆盖，现在没必要往下执行去更新集合或启动定时器了。
+      // 等 finally 块里统一处理就行。
+      return;
+    }
     const normalizedUrl = this.normalizeUrl(url);
     
     if (normalizedUrl && !this.urlSet.has(normalizedUrl)) {
