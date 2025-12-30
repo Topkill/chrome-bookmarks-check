@@ -535,24 +535,6 @@ class BackgroundService {
     
     if (info.menuItemId === 'check-link' && info.linkUrl) {
       let urlToCheck = info.linkUrl;
-      try {
-        const urlObj = new URL(info.linkUrl);
-        
-        // 检查是否为根域名 (即路径只有 '/')
-        if (urlObj.pathname === '/') {
-          // 如果是根域名，去掉末尾的 '/', 
-          // 使用 urlObj.origin (例如 "http://xianliu.ys168.com")
-          // 这就与 getAttribute('href') 的行为一致了
-          urlToCheck = urlObj.origin;
-        }
-        // 如果 pathname 不是 '/', (例如 /blog/page-1/), 
-        // 我们就保留原始的 info.linkUrl，不做任何修改
-
-      } catch (e) {
-        // 如果 URL 解析失败 (虽然不太可能), 
-        // 还是使用原始的 info.linkUrl
-        console.error("URL a nalysis failed in context menu:", e);
-      }
       this.checkLinkBookmark(urlToCheck, tab.id);
     } else if (info.menuItemId === 'check-selected-text') {
       chrome.scripting.executeScript({ 
@@ -570,22 +552,37 @@ class BackgroundService {
         console.log('[DEBUG-Background] 后台收到的原始数据:', { text, textUrls, linkUrls });
         const tabIdNum = tab.id as number;
 
-        // 1. 合并并去重所有来源的 URL
-        const allUrls = new Set<string>();
-        [...textUrls, ...linkUrls].forEach(url => {
-            let processedUrl = url;
-            // 保持与 extractUrlsFromText 一致的处理
-            if (processedUrl.startsWith('www.')) {
-              // ===== 日志 6: 确认 www 规则被触发 =====
-                console.log(`[DEBUG-Background] 'www.' 规则触发: "${processedUrl}" -> "https://${processedUrl}"`);
-                processedUrl = 'https://' + processedUrl;
-            }
-            if (processedUrl.startsWith('http')) {
-                allUrls.add(processedUrl);
-            }
-        });
-        
-        const combinedUrls = Array.from(allUrls);
+        // 1. 合并并去重所有来源的 URL (修改这里)
+  // const allUrls = new Set<string>(); // <--- 删除这行简单的 Set
+  
+  // 使用 Map 智能去重
+  const uniqueMap = new Map<string, string>();
+
+  [...textUrls, ...linkUrls].forEach(url => {
+      let processedUrl = url;
+      // 保持与 extractUrlsFromText 一致的处理
+      if (processedUrl.startsWith('www.')) {
+          processedUrl = 'https://' + processedUrl;
+      }
+      
+      if (processedUrl.startsWith('http')) {
+          // --- 智能去重逻辑开始 ---
+          const key = processedUrl.replace(/\/$/, '');
+          const existing = uniqueMap.get(key);
+          
+          if (!existing) {
+              uniqueMap.set(key, processedUrl);
+          } else {
+              // 优先保留带斜杠的版本
+              if (processedUrl.endsWith('/') && !existing.endsWith('/')) {
+                  uniqueMap.set(key, processedUrl);
+              }
+          }
+          // --- 智能去重逻辑结束 ---
+      }
+  });
+  
+  const combinedUrls = Array.from(uniqueMap.values()); // 获取去重后的值
         // ===== 日志 7: 确认合并后、规范化前的最终列表 =====
         console.log('[DEBUG-Background] 合并后的URL列表 (发送给规范化):', combinedUrls);
 
@@ -742,12 +739,16 @@ class BackgroundService {
       if (isSingle) {
         const result = resultsData.results[0];
         if (result.isBookmarked) {
-          let message = `原始链接: ${this.truncateUrl(result.original)}\n`;
+          // 修改后：使用 getDisplayUrl 优化展示
+          let message = `原始链接: ${this.truncateUrl(this.getDisplayUrl(result.original))}\n`;
+          // 如果规范化URL也想优化，也可以加上：
+          // message += `规范化: ${this.truncateUrl(this.getDisplayUrl(result.normalized))}\n`;
           message += `规范化: ${this.truncateUrl(result.normalized)}\n`;
           message += `书签链接: ${this.truncateUrl(result.bookmarkUrl || '未知')}`;
           this.showNotification('✅ 链接已收藏', message, result.original);
         } else {
-          let message = `原始链接: ${this.truncateUrl(result.original)}\n`;
+          // 修改后：
+          let message = `原始链接: ${this.truncateUrl(this.getDisplayUrl(result.original))}\n`;
           message += `规范化: ${this.truncateUrl(result.normalized)}`;
           this.showNotification('ℹ️ 链接未收藏', message, result.original);
         }
@@ -781,6 +782,14 @@ class BackgroundService {
   private truncateUrl(url: string, maxLength: number = 60): string {
     if (!url || url.length <= maxLength) return url || '';
     return url.substring(0, maxLength - 3) + '...';
+  }
+  /**
+   * 获取用于展示的URL (视觉上移除末尾斜杠)
+   */
+  private getDisplayUrl(url: string): string {
+    if (!url) return '';
+    // 如果以斜杠结尾，去掉它
+    return url.endsWith('/') ? url.slice(0, -1) : url;
   }
 
   private showNotification(title: string, message: string, url?: string, resultsForDetails?: any) {

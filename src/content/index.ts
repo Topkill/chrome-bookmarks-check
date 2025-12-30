@@ -316,18 +316,37 @@ class ContentScript {
    * 提取页面上的所有URL
    */
   private extractAllPageUrls(): string[] {
-    const urls = new Set<string>();
+    // 使用 Map 进行去重：Key=无斜杠URL, Value=原始URL(优先保留带斜杠的)
+    const uniqueMap = new Map<string, string>();
+
+    // 辅助函数：处理并存入 URL
+    const processUrl = (url: string) => {
+      // 1. 生成去重键（去掉末尾斜杠）
+      const key = url.replace(/\/$/, '');
+      
+      const existing = uniqueMap.get(key);
+      if (!existing) {
+        // 如果没存过，直接存
+        uniqueMap.set(key, url);
+      } else {
+        // 如果已存在，比较谁更"标准"
+        // 如果新来的带斜杠，而原有的不带，替换成带斜杠的 (因为它更匹配书签库)
+        if (url.endsWith('/') && !existing.endsWith('/')) {
+          uniqueMap.set(key, url);
+        }
+      }
+    };
     
-    // 提取所有链接的href
+    // 1. 提取 DOM 链接 (通常质量较高，带斜杠)
     const links = document.querySelectorAll('a[href]');
     links.forEach(link => {
       const href = (link as HTMLAnchorElement).href;
       if (this.isValidUrl(href)) {
-        urls.add(href);
+        processUrl(href);
       }
     });
     
-    // 提取文本中的URL
+    // 2. 提取文本中的URL (可能不带斜杠)
     const textNodes = this.getTextNodes(document.body);
     const urlPattern = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi;
     
@@ -337,13 +356,13 @@ class ContentScript {
       if (matches) {
         matches.forEach(url => {
           if (this.isValidUrl(url)) {
-            urls.add(url);
+            processUrl(url);
           }
         });
       }
     });
     
-    return Array.from(urls);
+    return Array.from(uniqueMap.values());
   }
 
   /**
@@ -561,8 +580,19 @@ class ContentScript {
    * 截断URL显示
    */
   private truncateUrl(url: string, maxLength: number = 60): string {
-    if (!url || url.length <= maxLength) return url || '';
-    return url.substring(0, maxLength - 3) + '...';
+    if (!url) return '';
+    
+    // === 核心修改在这里 ===
+    // 1. 检查：如果 URL 是以 '/' 结尾的 (比如 "https://baidu.com/")
+    // 2. 操作：slice(0, -1) 表示切掉最后一个字符
+    // 3. 结果：变成 "https://baidu.com"
+    // 4. 目的：这叫 "displayUrl" (展示用的URL)，只用于显示，不影响后台逻辑
+    const displayUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+    
+    // 原有的截断逻辑（如果太长就加省略号），
+    // 注意：这里使用的是处理过的 displayUrl
+    if (displayUrl.length <= maxLength) return displayUrl;
+    return displayUrl.substring(0, maxLength - 3) + '...';
   }
 
   // Custom modal for batch open choice, adapted for content script
