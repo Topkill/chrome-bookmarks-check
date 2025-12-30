@@ -4,7 +4,11 @@ interface BookmarkQueryResult {
   normalized: string;
   bookmarkUrl?: string;
 }
-
+// 获取用于展示的URL (视觉上移除末尾斜杠)
+function getDisplayUrl(url: string | undefined): string {
+  if (!url) return '';
+  return url.endsWith('/') ? url.slice(0, -1) : url;
+}
 // 判断两个URL是否本质上相同（忽略协议、www、尾部斜杠等）
 function areUrlsEssentiallySame(url1: string, url2: string): boolean {
   try {
@@ -99,7 +103,7 @@ function renderTextSearchResults(data: { originalText: string; query: string; re
           ${data.results.map(item => `
             <li>
               <strong>${item.title}</strong><br>
-              <a href="${item.url}" target="_blank">${item.url}</a>
+              <a href="${item.url}" target="_blank">${getDisplayUrl(item.url)}</a>
             </li>
           `).join('')}
         </ul>
@@ -156,8 +160,9 @@ function renderUrlSearchResults(data: { originalText: string; results: BookmarkQ
   const urlListThreshold = 10;
 
   const createUrlListHtml = (title: string, items: {url: string, text?: string}[], isCollapsible: boolean) => {
-    const listContent = items.map(item => `<li><a href="${item.url}" target="_blank">${item.text || item.url}</a></li>`).join('');
-
+    const listContent = items.map(item => 
+      `<li><a href="${item.url}" target="_blank">${item.text || getDisplayUrl(item.url)}</a></li>`
+    ).join('');
     if (isCollapsible) {
         return `
             <div class="result-section collapsible">
@@ -210,8 +215,11 @@ function renderUrlSearchResults(data: { originalText: string; results: BookmarkQ
             
             return `
               <li>
-                <a href="${item.original}" target="_blank">${item.original}</a>
-                ${shouldShowBookmarkUrl ? `<br><span class="meta">书签中保存为: <a href="${item.bookmarkUrl}" target="_blank">${item.bookmarkUrl}</a></span>` : ''}
+                <a href="${item.original}" target="_blank">${getDisplayUrl(item.original)}</a>                
+                ${shouldShowBookmarkUrl ? 
+                  // 修改这里: 书签链接显示 (如果有)
+                  `<br><span class="meta">书签中保存为: <a href="${item.bookmarkUrl}" target="_blank">${getDisplayUrl(item.bookmarkUrl)}</a></span>` 
+                  : ''}
               </li>
             `;
           }).join('')
@@ -223,7 +231,8 @@ function renderUrlSearchResults(data: { originalText: string; results: BookmarkQ
       <h2>未收藏的详情</h2>
       <ul>
         ${unbookmarkedItems.length > 0
-          ? unbookmarkedItems.map(item => `<li><a href="${item.original}" target="_blank">${item.original}</a></li>`).join('')
+          // 修改这里: 未收藏链接显示
+          ? unbookmarkedItems.map(item => `<li><a href="${item.original}" target="_blank">${getDisplayUrl(item.original)}</a></li>`).join('')
           : '<li>无</li>'
         }
       </ul>
