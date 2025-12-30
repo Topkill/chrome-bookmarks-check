@@ -85,6 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
         (document.getElementById('ignore-case') as HTMLInputElement).checked = result.settings.ignoreCase ?? false;
         (document.getElementById('ignore-www') as HTMLInputElement).checked = result.settings.ignoreWww ?? false;
         (document.getElementById('ignore-hash') as HTMLInputElement).checked = result.settings.ignoreHash ?? false;
+        (document.getElementById('ignore-discourse-post-number') as HTMLInputElement).checked = result.settings.ignoreDiscoursePostNumber ?? false;
       } else {
         // 如果没有保存的设置，则应用默认值
         resetForm();
@@ -124,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
     (document.getElementById('ignore-case') as HTMLInputElement).checked = false;
     (document.getElementById('ignore-www') as HTMLInputElement).checked = false;
     (document.getElementById('ignore-hash') as HTMLInputElement).checked = false;
+    (document.getElementById('ignore-discourse-post-number') as HTMLInputElement).checked = false;
   }
 
   //切换通知详情选项的可见性
@@ -162,7 +164,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ignoreTrailingSlash: (document.getElementById('ignore-trailing-slash') as HTMLInputElement).checked,
         ignoreCase: (document.getElementById('ignore-case') as HTMLInputElement).checked,
         ignoreWww: (document.getElementById('ignore-www') as HTMLInputElement).checked,
-        ignoreHash: (document.getElementById('ignore-hash') as HTMLInputElement).checked
+        ignoreHash: (document.getElementById('ignore-hash') as HTMLInputElement).checked,
+        ignoreDiscoursePostNumber: (document.getElementById('ignore-discourse-post-number') as HTMLInputElement).checked
       };
 
       await chrome.storage.local.set({ settings });

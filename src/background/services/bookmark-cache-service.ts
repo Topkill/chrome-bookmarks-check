@@ -27,7 +27,9 @@ export class BookmarkCacheService {
     ignoreTrailingSlash: false,
     ignoreCase: false,
     ignoreWww: false,
-    ignoreHash: false
+    ignoreHash: false,
+    // 新增：忽略 Discourse 楼层号
+    ignoreDiscoursePostNumber: false
   };
 
   private constructor() {
@@ -295,7 +297,8 @@ export class BookmarkCacheService {
           ignoreTrailingSlash: result.ignoreTrailingSlash ?? false,
           ignoreCase: result.ignoreCase ?? false,
           ignoreWww: result.ignoreWww ?? false,
-          ignoreHash: result.ignoreHash ?? false
+          ignoreHash: result.ignoreHash ?? false,
+          ignoreDiscoursePostNumber:  result.ignoreDiscoursePostNumber ?? false,
         };
       }
       console.log('[BookmarkCacheService] URL匹配设置已加载:', this.urlMatchSettings);
@@ -349,7 +352,39 @@ export class BookmarkCacheService {
       if (this.urlMatchSettings.ignoreHash) {
         urlObj.hash = '';
       }
-      
+      // ============================================================
+      // [新增] 适配 Discourse 论坛模式 (严格匹配)
+      // ============================================================
+      // if (this.urlMatchSettings.ignoreDiscoursePostNumber) {
+      //   // 性能优化：只有路径包含 '/t/' 时才进行正则检查
+      //   // 匹配格式: /t/任意slug/数字ID/数字楼层
+      //   if (urlObj.pathname.includes('/t/')) {
+      //     const discourseStrictPattern = /\/t\/[^\/]+\/(\d+)\/(\d+)\/?$/;
+      //     if (discourseStrictPattern.test(urlObj.pathname)) {
+      //       // 去掉最后一段 (楼层号)
+      //       urlObj.pathname = urlObj.pathname.replace(/\/(\d+)\/?$/, '');
+      //     }
+      //   }
+      // }
+      // ============================================================
+      // ============================================================
+      // [新增] 适配 Discourse 论坛模式 (严格匹配 /t/topic/)
+      // ============================================================
+      if (this.urlMatchSettings.ignoreDiscoursePostNumber) {
+        // 按要求修改：只检查路径中是否包含 literal 的 "/t/topic/"
+        if (urlObj.pathname.includes('/t/topic/')) {
+
+          // 正则修改：将中间的通配符 [^\/]+ 替换为固定的 topic
+          // 匹配格式: /t/topic/数字ID/数字楼层
+          const discourseStrictPattern = /\/t\/topic\/(\d+)\/(\d+)\/?$/;
+
+          if (discourseStrictPattern.test(urlObj.pathname)) {
+            // 去掉最后一段 (楼层号)
+            urlObj.pathname = urlObj.pathname.replace(/\/(\d+)\/?$/, '');
+          }
+        }
+      }
+      // ============================================================
       // // 4. 处理大小写（仅域名）
       // if (this.urlMatchSettings.ignoreCase) {
       //   urlObj.hostname = urlObj.hostname.toLowerCase();
