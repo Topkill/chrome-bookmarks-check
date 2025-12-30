@@ -23,6 +23,8 @@ export class BookmarkCacheService {
  // 【新增】标记是否正在初始化（加载缓存中）
   private isInitializing = false;
   private pendingAdditions: string[] = []; // 暂存队列
+  // 【新增】标记缓存是否完全就绪
+  private isCacheReady = false;
   
   // URL匹配设置（默认全部关闭，进行严格匹配）
   private urlMatchSettings = {
@@ -37,6 +39,9 @@ export class BookmarkCacheService {
 
   private constructor() {
     // 单例模式
+    // 【关键修复 1】一启动就注册监听器！不要等 initialize
+    // 这样能确保唤醒 SW 的那个事件绝对不会丢失
+    this.setupBookmarkListeners();
   }
 
   /**
@@ -54,51 +59,61 @@ export class BookmarkCacheService {
    */
   async initialize(): Promise<void> {
     console.log('[BookmarkCacheService] 初始化开始');
-    // 1. 监听器 (必须在最前)
-    this.setupBookmarkListeners();
+    
+    // 注意：this.setupBookmarkListeners() 已经移到 constructor 了，这里不要再调了！
 
-     // 2. 在做任何缓存操作前，必须先加载用户的匹配设置！
-    //    否则 loadCacheToMemory 或 fullRebuild 里的 normalizeUrl 都会用错配置。
+    // 1. 【关键修复 3】先加载设置 (await 期间进来的事件会被上面的 onBookmarkAdded 捕获进队列)
     await this.loadUrlMatchSettings();
 
-    // 3. 开启初始化保护
+    // 2. 开启初始化状态
     this.isInitializing = true;
-    this.pendingAdditions = []; // 清空队列
+    // ⚠️【关键修复 4】千万不要在这里清空 pendingAdditions！
+    // 因为在上面 await 期间可能已经有事件进来了，清空就丢数据了。
+    // this.pendingAdditions = []; <--- 删除这行
 
     try {
-      // 尝试从存储加载缓存
       const cache = await StorageService.loadCache();
       
       if (cache && this.isValidCache(cache)) {
         // 缓存有效，加载到内存
-        this.loadCacheToMemory(cache); // ⚠️ 这里发生了“覆盖”
+        this.loadCacheToMemory(cache); // 旧缓存覆盖内存,⚠️ 这里发生了“覆盖”
         console.log('[BookmarkCacheService] 从存储加载缓存成功');
         // 缓存有效但urlMap是内存独有的，需要重建
         await this.buildUrlMap();
+        
+        // 标记就绪
+        this.isCacheReady = true; 
       } else {
+        // 缓存无效，去重建
         this.isInitializing = false;
          // 缓存无效或不存在，触发全量重建
-        console.log('[BookmarkCacheService] 缓存无效或不存在，开始全量重建');
+        console.log('[BookmarkCacheService] 缓存无效，开始全量重建');
         await this.fullRebuild();
+        
+        // fullRebuild 内部会更新 urlSet，重建完也就绪了
+        this.isCacheReady = true; 
+        return; 
       }
     } catch (error) {
       console.error('[BookmarkCacheService] 初始化失败:', error);
+      // 出错时不要标记 ready，保持 false
       throw error;
     } finally {
-      // 3. 关闭保护模式，处理暂存队列
+      //关闭保护模式，处理暂存队列
       this.isInitializing = false;
       
-      // 【修改】不再触发 fullRebuild，而是高效地“补录”刚才丢失的书签
+      // 3. 【最后一步】处理暂存队列
+      // 此时 isCacheReady = true (如果是成功的话)，所以再次调用 onBookmarkAdded 会走正常流程
       if (this.pendingAdditions.length > 0) {
-        console.log(`[BookmarkCacheService] 处理初始化期间的 ${this.pendingAdditions.length} 个暂存书签`);
+        console.log(`[BookmarkCacheService] 处理初始化期间积压的 ${this.pendingAdditions.length} 个书签`);
         
-        // 逐个重新执行添加逻辑（这走的是高效的增量逻辑）
-        this.pendingAdditions.forEach(url => {
+        // 复制一份并清空原队列，防止死循环
+        const pending = [...this.pendingAdditions];
+        this.pendingAdditions = [];
+        
+        pending.forEach(url => {
           this.onBookmarkAdded(url);
         });
-        
-        // 清空队列
-        this.pendingAdditions = [];
       }
     }
   }
@@ -488,14 +503,12 @@ export class BookmarkCacheService {
    * 处理书签添加
    */
   private onBookmarkAdded(url: string) {
-    // 【修改】如果正在初始化，把 URL 扔进暂存队列，不要去触发重建
-    if (this.isInitializing || this.isBuilding) {
-      console.log('[BookmarkCacheService] 初始化期间检测到书签添加，已加入暂存队列:', url);
+   // 【关键修复 2】不仅检查正在初始化，还要检查“缓存未就绪”
+    // 如果 isCacheReady 是 false，说明还没初始化完，必须暂存
+    if (!this.isCacheReady || this.isBuilding || this.isInitializing) {
+      console.log('[BookmarkCacheService] 缓存未就绪，书签已加入暂存队列:', url);
       this.pendingAdditions.push(url);
-      //【建议添加】直接返回。
-      // 既然内存马上要被覆盖，现在没必要往下执行去更新集合或启动定时器了。
-      // 等 finally 块里统一处理就行。
-      return;
+      return; // 直接返回，等待 finally 块统一处理
     }
     const normalizedUrl = this.normalizeUrl(url);
     
